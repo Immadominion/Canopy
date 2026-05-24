@@ -1,0 +1,50 @@
+{
+  "name": "@canopy/web",
+  "version": "0.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint src --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "format:check": "prettier --check \"**/*.{ts,tsx,css}\" --ignore-path ../../.prettierignore"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1052.0",
+    "@aws-sdk/s3-request-presigner": "^3.1052.0",
+    "@canopy/types": "workspace:*",
+    "@canopy/utils": "workspace:*",
+    "@irys/upload": "^0.0.15",
+    "@irys/upload-solana": "^0.1.8",
+    "@sentry/nextjs": "^10.53.1",
+    "@solana/kit": "^6.9.0",
+    "@solana/wallet-adapter-base": "^0.9.27",
+    "@solana/wallet-adapter-react": "^0.15.39",
+    "@solana/wallet-adapter-wallets": "^0.19.38",
+    "@solana/web3.js": "^1.98.4",
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.106.1",
+    "bcryptjs": "^3.0.3",
+    "next": "^16.2.6",
+    "pino": "^10.3.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "resend": "^6.12.3",
+    "stripe": "^22.1.1",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "eslint": "^9.27.0",
+    "eslint-config-next": "^16.2.6",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.1.6",
+    "typescript": "^5.8.3"
+  }
+}

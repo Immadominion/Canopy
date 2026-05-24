@@ -1,0 +1,44 @@
+name: "Canopy Beta Deploy"
+description: "Upload a signed APK to Canopy and create a wallet-gated beta distribution track"
+author: "Canopy"
+
+branding:
+  icon: upload-cloud
+  color: red
+
+inputs:
+  api-key:
+    description: "Canopy API key (Settings → API Keys in the dashboard)"
+    required: true
+  app-id:
+    description: "App UUID from the Canopy dashboard"
+    required: true
+  apk-path:
+    description: "Workspace-relative path to the signed .apk file"
+    required: true
+  version-name:
+    description: "Version name string (e.g. 1.2.3)"
+    required: true
+  version-code:
+    description: "Integer version code (must be greater than previous release)"
+    required: true
+  expires-in:
+    description: "Number of days until the beta track expires (1–30)"
+    required: false
+    default: "30"
+  release-notes:
+    description: "Release notes shown to testers (max 2000 characters)"
+    required: false
+    default: ""
+
+outputs:
+  track-id:
+    description: "UUID of the created beta track"
+  expires-at:
+    description: "ISO 8601 expiry timestamp"
+  tester-cap:
+    description: "Maximum testers allowed on this track (always 200)"
+
+runs:
+  using: node24
+  main: dist/index.js

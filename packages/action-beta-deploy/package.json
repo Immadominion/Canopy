@@ -1,0 +1,25 @@
+{
+    "name": "@canopy/action-beta-deploy",
+    "version": "1.0.0",
+    "description": "GitHub Action: upload a signed APK to Canopy and create a wallet-gated beta distribution track",
+    "private": false,
+    "type": "commonjs",
+    "main": "dist/index.js",
+    "engines": {
+        "node": ">=24.0.0"
+    },
+    "scripts": {
+        "build": "tsup",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint src --max-warnings 0"
+    },
+    "dependencies": {
+        "@actions/core": "^3.0.1",
+        "@actions/exec": "^3.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^24.0.0",
+        "tsup": "^8.5.0",
+        "typescript": "^5.8.3"
+    }
+}

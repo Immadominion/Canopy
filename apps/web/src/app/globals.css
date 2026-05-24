@@ -1,0 +1,138 @@
+@import "tailwindcss";
+
+/* ─── Nothing Design System CSS Custom Properties ─── */
+
+:root {
+    /* Typography */
+    --font-display: var(--font-doto), "Space Mono", monospace;
+    --font-body: var(--font-space-grotesk), "DM Sans", system-ui, sans-serif;
+    --font-mono: var(--font-space-mono), "JetBrains Mono", "SF Mono", monospace;
+
+    /* Motion */
+    --ease-nd: cubic-bezier(0.25, 0.1, 0.25, 1);
+    --duration-micro: 150ms;
+    --duration-transition: 300ms;
+}
+
+/* Dark mode tokens (primary — OLED black) */
+.dark {
+    --black: #000000;
+    --surface: #111111;
+    --surface-raised: #1a1a1a;
+    --border: #222222;
+    --border-visible: #333333;
+    --text-disabled: #666666;
+    --text-secondary: #999999;
+    --text-primary: #e8e8e8;
+    --text-display: #ffffff;
+    --accent: #d71921;
+    --accent-subtle: rgba(215, 25, 33, 0.15);
+    --success: #4a9e5c;
+    --warning: #d4a843;
+    --interactive: #5b9bf6;
+}
+
+/* Light mode tokens (technical manual feel) */
+:root:not(.dark) {
+    --black: #f5f5f5;
+    --surface: #ffffff;
+    --surface-raised: #f0f0f0;
+    --border: #e8e8e8;
+    --border-visible: #cccccc;
+    --text-disabled: #999999;
+    --text-secondary: #666666;
+    --text-primary: #1a1a1a;
+    --text-display: #000000;
+    --accent: #d71921;
+    --accent-subtle: rgba(215, 25, 33, 0.1);
+    --success: #4a9e5c;
+    --warning: #d4a843;
+    --interactive: #007aff;
+}
+
+/* ─── Base Reset ─── */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+/* No scrollbar in OLED dark context */
+html {
+    background-color: var(--black);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+}
+
+body {
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Nothing Design Utility Patterns ─── */
+
+/* Dot-grid background motif */
+.dot-grid {
+    background-image: radial-gradient(circle, var(--border-visible) 1px, transparent 1px);
+    background-size: 16px 16px;
+}
+
+.dot-grid-subtle {
+    background-image: radial-gradient(circle, var(--border) 0.5px, transparent 0.5px);
+    background-size: 12px 12px;
+}
+
+/* Monospace label pattern — ALL CAPS, Space Mono */
+.nd-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.2;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+/* Data / numbers always use Space Mono */
+.nd-data {
+    font-family: var(--font-mono);
+}
+
+/* Hero display numbers */
+.nd-display {
+    font-family: var(--font-display);
+    color: var(--text-display);
+}
+
+/* Segmented progress bar segments */
+.nd-segment {
+    display: inline-block;
+    height: 10px;
+    width: 100%;
+    background-color: var(--border);
+}
+
+.nd-segment[data-filled="true"] {
+    background-color: var(--text-display);
+}
+
+.nd-segment[data-status="success"] {
+    background-color: var(--success);
+}
+
+.nd-segment[data-status="warning"] {
+    background-color: var(--warning);
+}
+
+.nd-segment[data-status="error"] {
+    background-color: var(--accent);
+}
+
+/* Inline status text — replaces toast/skeleton */
+.nd-status {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}

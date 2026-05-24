@@ -1,0 +1,139 @@
+---
+title: GitHub Actions
+description: Automate APK builds, pre-submission checks, and Canopy release creation from your CI/CD pipeline.
+---
+
+# GitHub Actions
+
+The `@canopy/cli` package provides a `canopy-release` action that integrates with GitHub Actions
+to automate your Solana Mobile release pipeline.
+
+## What the action does
+
+1. Builds your APK (or accepts a pre-built artifact)
+2. Runs pre-submission checks (manifest validation, signature verification, malware scan trigger)
+3. Creates a Canopy release record via the API
+4. Optionally creates a beta track and uploads the APK
+
+## Setup
+
+### 1. Add secrets to your repository
+
+In **Settings → Secrets and variables → Actions**, add:
+
+| Secret | Value |
+|---|---|
+| `CANOPY_API_KEY` | A Canopy API key with `releases:write` scope |
+| `CANOPY_APP_ID` | Your app's ID from the Canopy dashboard |
+
+### 2. Add the workflow
+
+```yaml
+# .github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build APK
+        run: |
+          cd android
+          ./gradlew assembleRelease
+        env:
+          KEYSTORE_PATH: ${{ secrets.KEYSTORE_PATH }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Create Canopy release
+        uses: canopy-devops/canopy-action@v1
+        with:
+          api-key: ${{ secrets.CANOPY_API_KEY }}
+          app-id: ${{ secrets.CANOPY_APP_ID }}
+          apk-path: android/app/build/outputs/apk/release/app-release.apk
+          version-name: ${{ github.ref_name }}
+          release-notes: |
+            Release ${{ github.ref_name }}
+            ${{ github.event.head_commit.message }}
+```
+
+### 3. Create a beta track (optional)
+
+To automatically create a beta track after the release passes checks:
+
+```yaml
+      - name: Create Canopy release
+        uses: canopy-devops/canopy-action@v1
+        with:
+          api-key: ${{ secrets.CANOPY_API_KEY }}
+          app-id: ${{ secrets.CANOPY_APP_ID }}
+          apk-path: android/app/build/outputs/apk/release/app-release.apk
+          version-name: ${{ github.ref_name }}
+          create-beta-track: true
+          beta-track-name: "v${{ github.ref_name }} Beta"
+          beta-tester-cap: 50
+          beta-expires-days: 14
+```
+
+## Using the CLI directly
+
+You can also use the Canopy CLI directly in your pipeline:
+
+```bash
+# Install
+npm install -g @canopy/cli
+
+# Authenticate
+canopy auth login --api-key "$CANOPY_API_KEY"
+
+# Create a release
+canopy release create \
+  --app-id "$CANOPY_APP_ID" \
+  --apk ./android/app/build/outputs/apk/release/app-release.apk \
+  --version-name "1.2.0" \
+  --release-notes "Bug fixes and improvements"
+
+# Submit to the dApp Store (requires check_passed status)
+canopy release submit --release-id "$RELEASE_ID"
+```
+
+## Pre-submission checks
+
+The Canopy CLI runs the following checks before a release can be submitted:
+
+| Check | Description |
+|---|---|
+| `manifest_valid` | Validates `AndroidManifest.xml` for required permissions and metadata |
+| `signature_valid` | Verifies the APK signing certificate |
+| `target_sdk` | Confirms `targetSdkVersion` meets dApp Store requirements |
+| `seeker_metadata` | Checks for Seeker-specific metadata (optional but recommended) |
+| `malware_scan` | Triggers a VirusTotal scan — required before activation |
+
+All checks must pass before the release status advances to `check_passed` and becomes
+eligible for dApp Store submission.
+
+## Environment variables
+
+The CLI respects these environment variables (useful for CI):
+
+| Variable | Description |
+|---|---|
+| `CANOPY_API_KEY` | API key for authentication |
+| `CANOPY_APP_ID` | Default app ID for commands |
+| `CANOPY_API_URL` | Override the API base URL (default: `https://canopy.so/api/v1`) |

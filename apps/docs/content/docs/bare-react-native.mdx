@@ -1,0 +1,139 @@
+---
+title: Bare React Native
+description: Installing @canopy/react-native in a bare React Native 0.73+ project without Expo.
+---
+
+# Bare React Native Integration
+
+This guide covers setting up Canopy in a **bare React Native 0.73+** project
+(without Expo, using the React Native CLI).
+
+## Requirements
+
+- React Native **0.73** or later
+- `@react-native-async-storage/async-storage` installed and linked
+
+## 1. Install dependencies
+
+```bash
+pnpm add @canopy/react-native @react-native-async-storage/async-storage
+
+# For React Native < 0.73 (with autolinking):
+npx pod-install   # iOS only
+```
+
+## 2. Add `CanopyProvider` to `App.tsx`
+
+```tsx
+// App.tsx
+import React from "react";
+import { CanopyProvider } from "@canopy/react-native";
+import { NavigationContainer } from "@react-navigation/native";
+import { AppNavigator } from "./src/navigation";
+
+export default function App() {
+  return (
+    <CanopyProvider
+      appId={process.env.CANOPY_APP_ID ?? ""}
+      debug={__DEV__}
+    >
+      <NavigationContainer>
+        <AppNavigator />
+      </NavigationContainer>
+    </CanopyProvider>
+  );
+}
+```
+
+Store your App ID in a `.env` file and use a tool like
+[react-native-config](https://github.com/luggit/react-native-config) to inject it:
+
+```bash
+# .env
+CANOPY_APP_ID=your_app_id_here
+```
+
+## 3. Identify on wallet connect
+
+```tsx
+// src/hooks/useWalletIdentify.ts
+import { useEffect } from "react";
+import { useCanopy } from "@canopy/react-native";
+
+export function useWalletIdentify(walletPublicKey: string | null) {
+  const canopy = useCanopy();
+
+  useEffect(() => {
+    if (walletPublicKey) {
+      canopy.identify(walletPublicKey);
+    } else {
+      canopy.reset();
+    }
+  }, [walletPublicKey]);
+}
+```
+
+## 4. Track navigation with React Navigation
+
+Automatically track screen views by subscribing to navigation state changes:
+
+```tsx
+// src/navigation/index.tsx
+import { NavigationContainer } from "@react-navigation/native";
+import type { NavigationState } from "@react-navigation/native";
+import { useCanopy } from "@canopy/react-native";
+import { useRef } from "react";
+
+function getActiveRouteName(state: NavigationState | undefined): string {
+  if (!state) return "Unknown";
+  const route = state.routes[state.index];
+  if (!route) return "Unknown";
+  if (route.state) return getActiveRouteName(route.state as NavigationState);
+  return route.name;
+}
+
+export function AppNavigator() {
+  const canopy = useCanopy();
+  const routeNameRef = useRef<string>("Unknown");
+
+  return (
+    <NavigationContainer
+      onReady={() => {
+        // Track initial screen
+      }}
+      onStateChange={(state) => {
+        const currentRoute = getActiveRouteName(state);
+        if (routeNameRef.current !== currentRoute) {
+          canopy.screen(currentRoute);
+          routeNameRef.current = currentRoute;
+        }
+      }}
+    >
+      {/* your navigators */}
+    </NavigationContainer>
+  );
+}
+```
+
+## 5. ProGuard rules (Android release builds)
+
+If you enable code shrinking, add these rules to `android/app/proguard-rules.pro`:
+
+```proguard
+# Canopy SDK
+-keep class so.canopy.** { *; }
+```
+
+## Troubleshooting
+
+**Events are not appearing in the dashboard**
+
+- Confirm `CanopyProvider` is mounted before any `useCanopy()` calls
+- Enable `debug={true}` and check the Metro logs for flush errors
+- Verify your App ID matches the one in the Canopy dashboard
+- Check that the device has network access to `ingest.canopy.so`
+
+**AsyncStorage errors on Android**
+
+AsyncStorage requires `@react-native-async-storage/async-storage` to be properly
+linked. Run `npx react-native doctor` to check for setup issues.

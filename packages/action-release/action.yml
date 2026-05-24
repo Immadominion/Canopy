@@ -1,0 +1,48 @@
+name: "Canopy Release"
+description: "Run pre-submission APK checks, create a release record, and prepare for dApp Store submission"
+author: "Canopy"
+
+branding:
+  icon: send
+  color: red
+
+inputs:
+  api-key:
+    description: "Canopy API key (Settings → API Keys in the dashboard)"
+    required: true
+  app-id:
+    description: "App UUID from the Canopy dashboard"
+    required: true
+  apk-path:
+    description: "Workspace-relative path to the signed .apk file"
+    required: true
+  version-name:
+    description: "Version name string (e.g. 1.2.3)"
+    required: true
+  version-code:
+    description: "Integer version code"
+    required: true
+  beta-track-id:
+    description: "UUID of the beta track that was tested (links release to beta history)"
+    required: false
+    default: ""
+  release-notes:
+    description: "Release notes for the dApp Store submission (max 2000 characters)"
+    required: false
+    default: ""
+  fail-on-check-failure:
+    description: "Fail the workflow step if any APK check fails (default: true)"
+    required: false
+    default: "true"
+
+outputs:
+  release-id:
+    description: "UUID of the created release record in Canopy"
+  checks-passed:
+    description: "'true' if all pre-submission APK checks passed, 'false' otherwise"
+  check-summary:
+    description: "Human-readable summary of all check results"
+
+runs:
+  using: node24
+  main: dist/index.js

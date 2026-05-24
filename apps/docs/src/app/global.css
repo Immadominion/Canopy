@@ -1,0 +1,56 @@
+@import "tailwindcss";
+@import "fumadocs-ui/style.css";
+
+/*
+ * Canopy Docs — Nothing Design System theme for Fumadocs UI
+ * Dark-mode-first. OLED black background.
+ */
+
+@layer base {
+    :root {
+        /* Override Fumadocs colour tokens to Nothing Design palette */
+        --color-fd-background: #000000;
+        --color-fd-foreground: #e8e8e8;
+        --color-fd-muted: #111111;
+        --color-fd-muted-foreground: #888888;
+        --color-fd-popover: #0a0a0a;
+        --color-fd-popover-foreground: #e8e8e8;
+        --color-fd-card: #0a0a0a;
+        --color-fd-card-foreground: #e8e8e8;
+        --color-fd-border: #222222;
+        --color-fd-primary: #d71921;
+        --color-fd-primary-foreground: #ffffff;
+        --color-fd-secondary: #111111;
+        --color-fd-secondary-foreground: #e8e8e8;
+        --color-fd-accent: #1a1a1a;
+        --color-fd-accent-foreground: #e8e8e8;
+        --color-fd-ring: #d71921;
+    }
+
+    /* Force dark mode — Canopy Docs is dark-only */
+    html {
+        color-scheme: dark;
+        background-color: #000000;
+    }
+}
+
+/* Typography overrides — Space Grotesk + Space Mono */
+body {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+}
+
+code,
+pre,
+kbd,
+samp,
+[class*="font-mono"] {
+    font-family: "Space Mono", "Courier New", monospace;
+}
+
+/* Sidebar nav link — match Nothing label style */
+.fd-sidebar-item {
+    font-family: "Space Mono", monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}

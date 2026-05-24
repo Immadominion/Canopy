@@ -1,0 +1,866 @@
+openapi: 3.1.0
+info:
+  title: Canopy API
+  version: 1.0.0
+  description: |
+    The Canopy API gives you programmatic access to all Canopy platform features:
+    beta track distribution, analytics, and release operations.
+
+    **Authentication:** Include your API key or JWT in every request:
+    ```
+    Authorization: Bearer {token}
+    ```
+
+    **Error format:**
+    ```json
+    {
+      "error": {
+        "code": "SCREAMING_SNAKE_CASE",
+        "message": "Human-readable description",
+        "details": {}
+      }
+    }
+    ```
+  contact:
+    name: Canopy Support
+    url: https://canopy.so
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://canopy.so/api/v1
+    description: Production
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Dashboard JWT or publisher API key
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: NOT_FOUND
+            message:
+              type: string
+              example: Resource not found
+            details:
+              type: object
+              additionalProperties: true
+
+    App:
+      type: object
+      required: [id, name, package_name, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: My Solana dApp
+        package_name:
+          type: string
+          example: com.example.mydapp
+        created_at:
+          type: string
+          format: date-time
+
+    BetaTrack:
+      type: object
+      required: [id, app_id, name, tester_cap, expires_at, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        tester_cap:
+          type: integer
+          minimum: 1
+          maximum: 200
+          description: Hard limit — cannot exceed 200 per product invariant
+        expires_at:
+          type: string
+          format: date-time
+          description: Must be within 30 days of creation
+        status:
+          type: string
+          enum: [draft, active, expired, closed]
+        tester_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    Release:
+      type: object
+      required:
+        [id, app_id, version_name, version_code, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+          format: uuid
+        beta_track_id:
+          type: string
+          format: uuid
+          nullable: true
+        version_name:
+          type: string
+          example: "1.2.0"
+        version_code:
+          type: integer
+          example: 12
+        status:
+          type: string
+          enum:
+            [
+              draft,
+              check_pending,
+              check_passed,
+              check_failed,
+              submitted,
+              in_review,
+              published,
+              rejected,
+            ]
+        release_notes:
+          type: string
+          nullable: true
+        apk_sha256:
+          type: string
+          nullable: true
+        check_results:
+          type: object
+          nullable: true
+        dapp_store_submission_id:
+          type: string
+          nullable: true
+        rejection_reason:
+          type: string
+          nullable: true
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ApiKey:
+      type: object
+      required: [id, name, scopes, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        key:
+          type: string
+          description: Plaintext key — returned ONLY on creation. Not stored.
+          example: cpy_live_xxxxxxxxxxxxxxxxxxxx
+        scopes:
+          type: array
+          items:
+            type: string
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+paths:
+  /apps:
+    get:
+      operationId: listApps
+      summary: List apps
+      description: List all apps for the authenticated publisher.
+      tags: [Apps]
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Pagination cursor from the previous response
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/App"
+                  next_cursor:
+                    type: string
+                    nullable: true
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    post:
+      operationId: createApp
+      summary: Create app
+      tags: [Apps]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, package_name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 80
+                package_name:
+                  type: string
+                  example: com.example.mydapp
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/App"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: KYC required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /apps/{appId}/tracks:
+    get:
+      operationId: listTracks
+      summary: List beta tracks
+      tags: [Beta Tracks]
+      parameters:
+        - name: appId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BetaTrack"
+
+    post:
+      operationId: createTrack
+      summary: Create beta track
+      description: |
+        Creates a new beta track for APK distribution.
+
+        **Invariants (non-negotiable):**
+        - `tester_cap` maximum: **200**
+        - `expires_at` maximum: **30 days** from now
+        - Requires KYC/KYB verification
+      tags: [Beta Tracks]
+      parameters:
+        - name: appId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, tester_cap, expires_at]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                  maxLength: 500
+                tester_cap:
+                  type: integer
+                  minimum: 1
+                  maximum: 200
+                expires_at:
+                  type: string
+                  format: date-time
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/BetaTrack"
+        "403":
+          description: KYC required or publisher not verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Tester cap would exceed 200
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /tracks/{trackId}/testers:
+    get:
+      operationId: listTesters
+      summary: List testers
+      description: Returns 404 for unauthenticated requests and for wallets not on the allowlist.
+      tags: [Beta Tracks]
+      parameters:
+        - name: trackId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        wallet_hash:
+                          type: string
+                          description: SHA-256 hash of the wallet address
+                        added_at:
+                          type: string
+                          format: date-time
+        "404":
+          description: Track not found or not authorised
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    post:
+      operationId: addTester
+      summary: Add tester
+      tags: [Beta Tracks]
+      parameters:
+        - name: trackId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [wallet_address]
+              properties:
+                wallet_address:
+                  type: string
+                  description: Base58-encoded Solana wallet address
+                  example: So11111111111111111111111111111111111111112
+      responses:
+        "201":
+          description: Tester added
+        "409":
+          description: Tester cap reached (200 limit)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /tracks/{trackId}/download:
+    get:
+      operationId: getDownloadUrl
+      summary: Get signed APK download URL
+      description: |
+        Returns a time-limited (15 min), wallet-bound signed URL for the beta APK.
+
+        - The requesting wallet must be on the allowlist
+        - The signed URL is HMAC-SHA256 bound to the requesting wallet hash
+        - A URL signed for wallet A will not work for wallet B
+      tags: [Beta Tracks]
+      parameters:
+        - name: trackId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Signed URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                  expires_at:
+                    type: string
+                    format: date-time
+        "403":
+          description: Wallet not on allowlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Track not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /releases/{releaseId}:
+    get:
+      operationId: getRelease
+      summary: Get release
+      tags: [Releases]
+      parameters:
+        - name: releaseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Release"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    patch:
+      operationId: updateRelease
+      summary: Update release
+      description: |
+        Updates a release. Status must follow allowed state transitions:
+
+        | From | Allowed to |
+        |---|---|
+        | draft | check_pending, check_passed, check_failed |
+        | check_pending | check_passed, check_failed |
+        | check_passed | submitted |
+        | check_failed | check_pending, draft |
+        | submitted | — (portal-driven) |
+        | in_review | — (portal-driven) |
+        | published | — (terminal) |
+        | rejected | draft |
+      tags: [Releases]
+      parameters:
+        - name: releaseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum:
+                    [
+                      draft,
+                      check_pending,
+                      check_passed,
+                      check_failed,
+                      submitted,
+                      in_review,
+                      published,
+                      rejected,
+                    ]
+                releaseNotes:
+                  type: string
+                  maxLength: 2000
+                checkResults:
+                  type: object
+                  properties:
+                    passed:
+                      type: boolean
+                    checks:
+                      type: array
+                      items:
+                        type: object
+                        required: [name, passed, detail]
+                        properties:
+                          name:
+                            type: string
+                          passed:
+                            type: boolean
+                          detail:
+                            type: string
+                rejectionReason:
+                  type: string
+                  maxLength: 1000
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Release"
+        "422":
+          description: Invalid status transition or immutable field
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /releases/{releaseId}/submission-status:
+    get:
+      operationId: getSubmissionStatus
+      summary: Get submission status
+      description: Returns the current dApp Store submission status and human-readable guidance.
+      tags: [Releases]
+      parameters:
+        - name: releaseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  release_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                  submission_id:
+                    type: string
+                    nullable: true
+                  submitted_at:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  published_at:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  guidance:
+                    type: string
+                  polling_available:
+                    type: boolean
+                    description: "Always false until on-chain polling is implemented"
+
+    post:
+      operationId: syncSubmissionStatus
+      summary: Sync submission status
+      description: |
+        Manually advance the submission status from `submitted` or `in_review`
+        to a new portal-confirmed state.
+
+        Use this after confirming the status change in the dApp Store Publisher Portal.
+      tags: [Releases]
+      parameters:
+        - name: releaseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [in_review, published, rejected]
+                rejection_reason:
+                  type: string
+                  maxLength: 1000
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  release_id:
+                    type: string
+                    format: uuid
+                  previous_status:
+                    type: string
+                  status:
+                    type: string
+                  published_at:
+                    type: string
+                    format: date-time
+                    nullable: true
+        "422":
+          description: Release not in submitted/in_review state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api-keys:
+    get:
+      operationId: listApiKeys
+      summary: List API keys
+      description: API key values are hashed — plaintext is only returned on creation.
+      tags: [API Keys]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ApiKey"
+
+    post:
+      operationId: createApiKey
+      summary: Create API key
+      description: |
+        Creates a new API key. The plaintext key is returned **once only** — store it securely.
+      tags: [API Keys]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes]
+              properties:
+                name:
+                  type: string
+                  maxLength: 80
+                scopes:
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - releases:read
+                      - releases:write
+                      - tracks:read
+                      - tracks:write
+                      - analytics:read
+                      - api-keys:read
+      responses:
+        "201":
+          description: Created — key shown once
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ApiKey"
+
+  /api-keys/{keyId}:
+    delete:
+      operationId: revokeApiKey
+      summary: Revoke API key
+      description: Revokes the key immediately. All requests using it will return 401.
+      tags: [API Keys]
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Revoked
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /analytics/{appId}:
+    get:
+      operationId: getAnalyticsSummary
+      summary: Analytics summary
+      description: Returns DAU, WAU, MAU, and top events for the last 30 days.
+      tags: [Analytics]
+      parameters:
+        - name: appId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dau:
+                    type: integer
+                  wau:
+                    type: integer
+                  mau:
+                    type: integer
+                  top_events:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        event_name:
+                          type: string
+                        count:
+                          type: integer
+
+  /analytics/{appId}/nft-cohort:
+    get:
+      operationId: getNftCohort
+      summary: NFT cohort breakdown
+      description: Returns analytics segmented by Seeker Genesis Token holders vs non-holders.
+      tags: [Analytics]
+      parameters:
+        - name: appId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  genesis_holders:
+                    type: object
+                    properties:
+                      active_users:
+                        type: integer
+                      event_count:
+                        type: integer
+                  non_holders:
+                    type: object
+                    properties:
+                      active_users:
+                        type: integer
+                      event_count:
+                        type: integer
+
+tags:
+  - name: Apps
+    description: Manage your Solana Mobile apps
+  - name: Beta Tracks
+    description: Create and manage wallet-gated APK distribution tracks
+  - name: Releases
+    description: Manage releases and dApp Store submission pipeline
+  - name: Analytics
+    description: Query event and cohort analytics
+  - name: API Keys
+    description: Create and revoke programmatic access keys

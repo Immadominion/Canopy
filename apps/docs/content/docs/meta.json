@@ -1,0 +1,16 @@
+{
+    "title": "Canopy",
+    "description": "Developer documentation for the Canopy platform.",
+    "pages": [
+        "index",
+        "getting-started",
+        "sdk-reference",
+        "---Integration Guides---",
+        "expo",
+        "bare-react-native",
+        "---CI/CD---",
+        "github-actions",
+        "---API---",
+        "api-reference"
+    ]
+}

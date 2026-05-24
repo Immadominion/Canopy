@@ -1,0 +1,50 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import {
+    DocsPage,
+    DocsBody,
+    DocsDescription,
+    DocsTitle,
+} from "fumadocs-ui/layouts/docs/page";
+import { source } from "@/lib/source";
+
+interface PageProps {
+    params: Promise<{ slug?: string[] }>;
+}
+
+export async function generateStaticParams() {
+    return source.generateParams();
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+    const { slug } = await params;
+    const page = source.getPage(slug);
+    if (!page) return {};
+
+    return {
+        title: page.data.title,
+        description: page.data.description,
+    };
+}
+
+export default async function DocPage({ params }: PageProps) {
+    const { slug } = await params;
+    const page = source.getPage(slug);
+    if (!page) notFound();
+
+    const MDXContent = page.data.body;
+
+    return (
+        <DocsPage
+            toc={page.data.toc}
+            full={page.data.full ?? false}
+            tableOfContent={{ style: "clerk" }}
+        >
+            <DocsTitle>{page.data.title}</DocsTitle>
+            <DocsDescription>{page.data.description}</DocsDescription>
+            <DocsBody>
+                <MDXContent />
+            </DocsBody>
+        </DocsPage>
+    );
+}

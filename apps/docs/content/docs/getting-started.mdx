@@ -1,0 +1,124 @@
+---
+title: Getting Started
+description: Install the Canopy SDK, wrap your app with CanopyProvider, and send your first event in under 5 minutes.
+---
+
+# Getting Started
+
+## Prerequisites
+
+- React Native **0.73+** or Expo SDK **51+**
+- A Canopy account and an **App ID** (create one in the [Canopy dashboard](https://canopy.so/dashboard))
+- A wallet integration using `@solana-mobile/mobile-wallet-adapter-protocol`
+
+## 1. Install the SDK
+
+```bash
+# pnpm
+pnpm add @canopy/react-native
+
+# npm
+npm install @canopy/react-native
+
+# yarn
+yarn add @canopy/react-native
+```
+
+The SDK has zero native dependencies. It uses `AsyncStorage` from
+`@react-native-async-storage/async-storage` — install it if you do not already have it:
+
+```bash
+pnpm add @react-native-async-storage/async-storage
+```
+
+## 2. Wrap your app with `CanopyProvider`
+
+Add `CanopyProvider` at the root of your app, **above** any navigation or wallet adapters.
+
+```tsx
+// App.tsx (bare RN) or app/_layout.tsx (Expo Router)
+import { CanopyProvider } from "@canopy/react-native";
+
+export default function App() {
+  return (
+    <CanopyProvider
+      appId="YOUR_APP_ID"
+      // Optional: enable verbose logging during development
+      debug={__DEV__}
+    >
+      {/* rest of your app */}
+    </CanopyProvider>
+  );
+}
+```
+
+Replace `YOUR_APP_ID` with the App ID from the Canopy dashboard.
+
+## 3. Identify the current wallet
+
+Call `useCanopy().identify()` once the user connects their wallet:
+
+```tsx
+import { useCanopy } from "@canopy/react-native";
+import { useMobileWallet } from "./wallet"; // your MWA hook
+
+export function WalletConnectedScreen() {
+  const canopy = useCanopy();
+  const wallet = useMobileWallet();
+
+  useEffect(() => {
+    if (wallet.connected && wallet.publicKey) {
+      // Wallet address is SHA-256 hashed on-device before any network call.
+      canopy.identify(wallet.publicKey.toBase58());
+    }
+  }, [wallet.connected, wallet.publicKey]);
+
+  return null;
+}
+```
+
+The wallet address is **SHA-256 hashed on-device** before anything leaves the phone.
+Canopy never receives or stores plaintext wallet addresses.
+
+## 4. Track your first event
+
+```tsx
+import { useCanopy } from "@canopy/react-native";
+
+export function HomeScreen() {
+  const canopy = useCanopy();
+
+  useEffect(() => {
+    canopy.track("home_viewed");
+  }, []);
+
+  function handleSwap() {
+    canopy.track("swap_initiated", {
+      token_in: "SOL",
+      token_out: "USDC",
+      amount_lamports: 1_000_000,
+    });
+    // ... rest of swap logic
+  }
+
+  return (/* ... */);
+}
+```
+
+Events are buffered locally and flushed automatically:
+- Every **30 seconds**
+- When the event queue reaches **50 events**
+- When the app moves to the **background**
+
+## 5. Verify in the dashboard
+
+Open [canopy.so/dashboard](https://canopy.so/dashboard), navigate to your app, and click **Analytics**.
+Your first events should appear within a few seconds.
+
+---
+
+## What's next?
+
+- Read the full [SDK reference](/docs/sdk-reference) for all available methods
+- Set up [GitHub Actions](/docs/github-actions) for automated release builds
+- Follow the [Expo guide](/docs/expo) if you are using Expo

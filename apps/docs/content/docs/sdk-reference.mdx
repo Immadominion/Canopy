@@ -1,0 +1,171 @@
+---
+title: SDK Reference
+description: Complete API reference for @canopy/react-native — the official Canopy SDK for React Native and Expo apps.
+---
+
+# SDK Reference — `@canopy/react-native`
+
+## `CanopyProvider`
+
+The root context provider. Mount it at the top of your component tree before any navigation
+or wallet adapters.
+
+```tsx
+import { CanopyProvider } from "@canopy/react-native";
+
+<CanopyProvider
+  appId="YOUR_APP_ID"
+  ingestUrl="https://ingest.canopy.so"  // optional — defaults to production
+  flushInterval={30_000}               // optional — ms between auto-flushes (default: 30000)
+  flushThreshold={50}                  // optional — events before auto-flush (default: 50)
+  debug={false}                        // optional — verbose logging (default: false)
+>
+  {children}
+</CanopyProvider>
+```
+
+| Prop | Type | Required | Description |
+|---|---|---|---|
+| `appId` | `string` | ✅ | Your Canopy App ID from the dashboard |
+| `ingestUrl` | `string` | | Analytics ingest endpoint. Defaults to production. |
+| `flushInterval` | `number` | | Auto-flush interval in ms. Default: `30000` |
+| `flushThreshold` | `number` | | Queue size before an immediate flush. Default: `50` |
+| `debug` | `boolean` | | Log SDK internals to console. Default: `false` |
+
+No network requests are made until `CanopyProvider` is mounted. Safe to use with SSR/SSG.
+
+---
+
+## `useCanopy()`
+
+Returns the Canopy client for the current app context.
+
+```ts
+const canopy = useCanopy();
+```
+
+### `canopy.identify(walletAddress)`
+
+Associates subsequent events with a wallet address. The address is SHA-256 hashed
+on-device — the raw address is never sent over the network.
+
+```ts
+canopy.identify(walletPublicKey.toBase58());
+```
+
+Call this once the user connects their wallet. Call `canopy.reset()` when they disconnect.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `walletAddress` | `string` | Base58-encoded Solana wallet address |
+
+---
+
+### `canopy.track(eventName, properties?)`
+
+Queues an analytics event. Events are batched and flushed automatically.
+
+```ts
+canopy.track("swap_completed", {
+  token_in: "SOL",
+  token_out: "USDC",
+  amount_lamports: 5_000_000,
+  slippage_bps: 50,
+});
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `eventName` | `string` | Event name. Use `snake_case` by convention. Max 128 chars. |
+| `properties` | `Record<string, unknown>` | Optional key-value pairs. Must be JSON-serialisable. |
+
+---
+
+### `canopy.screen(screenName, properties?)`
+
+Tracks a screen view. Equivalent to `track("screen_viewed", { screen: screenName, ...properties })`.
+
+```ts
+canopy.screen("WalletHome", { tab: "portfolio" });
+```
+
+---
+
+### `canopy.flush()`
+
+Immediately sends all queued events to the ingest endpoint.
+
+```ts
+await canopy.flush();
+```
+
+Returns a `Promise<void>`. Resolves when the flush completes or silently on network error —
+the SDK never throws.
+
+---
+
+### `canopy.reset()`
+
+Clears the current wallet identity. Call this when the user disconnects their wallet.
+
+```ts
+canopy.reset();
+```
+
+---
+
+## `withCanopy(Component)` (HOC)
+
+Higher-order component equivalent of `useCanopy()` for class components.
+
+```tsx
+import { withCanopy } from "@canopy/react-native";
+import type { CanopyClient } from "@canopy/react-native";
+
+type Props = { canopy: CanopyClient };
+
+class MyScreen extends React.Component<Props> {
+  componentDidMount() {
+    this.props.canopy.screen("MyScreen");
+  }
+  render() { return null; }
+}
+
+export default withCanopy(MyScreen);
+```
+
+---
+
+## Auto-collected properties
+
+Every event automatically includes:
+
+| Property | Description |
+|---|---|
+| `sdk_version` | `@canopy/react-native` package version |
+| `app_version` | App version from `expo-constants` or `react-native`'s `DeviceInfo` |
+| `platform` | `"android"` or `"ios"` |
+| `session_id` | UUID, generated fresh each app launch |
+| `is_seeker` | `true` if the device is a Seeker (detected via system property) |
+| `has_genesis_token` | `true` if the identified wallet holds a Seeker Genesis Token |
+
+`is_seeker` and `has_genesis_token` are resolved asynchronously after `identify()` is called.
+Events emitted before resolution will be back-filled when the queue is flushed.
+
+---
+
+## Error handling
+
+The SDK is designed to **never crash the host app**. All internal errors are caught and
+either silently discarded or logged if `debug: true` is set. Network errors result in
+the event being re-queued for the next flush cycle.
+
+---
+
+## TypeScript
+
+The SDK is fully typed. Import types directly:
+
+```ts
+import type { CanopyClient, CanopyEvent } from "@canopy/react-native";
+```

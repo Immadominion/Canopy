@@ -1,0 +1,116 @@
+---
+title: Expo Integration
+description: How to install and configure @canopy/react-native in an Expo SDK 51+ project.
+---
+
+# Expo Integration
+
+This guide covers setting up Canopy in an **Expo SDK 51+** project using **Expo Router**.
+
+## Requirements
+
+- Expo SDK **51** or later
+- `@react-native-async-storage/async-storage` installed
+
+## 1. Install dependencies
+
+```bash
+pnpm add @canopy/react-native
+npx expo install @react-native-async-storage/async-storage
+```
+
+## 2. Add `CanopyProvider` to the root layout
+
+```tsx
+// app/_layout.tsx
+import { CanopyProvider } from "@canopy/react-native";
+import { Stack } from "expo-router";
+
+export default function RootLayout() {
+  return (
+    <CanopyProvider appId={process.env.EXPO_PUBLIC_CANOPY_APP_ID!} debug={__DEV__}>
+      <Stack />
+    </CanopyProvider>
+  );
+}
+```
+
+Add your App ID to `.env`:
+
+```bash
+EXPO_PUBLIC_CANOPY_APP_ID=your_app_id_here
+```
+
+## 3. Identify on wallet connect
+
+If you are using `@solana-mobile/mobile-wallet-adapter-protocol`:
+
+```tsx
+// hooks/useWalletIdentify.ts
+import { useEffect } from "react";
+import { useCanopy } from "@canopy/react-native";
+import { useAuthorization } from "./useAuthorization"; // your MWA hook
+
+export function useWalletIdentify() {
+  const canopy = useCanopy();
+  const { selectedAccount } = useAuthorization();
+
+  useEffect(() => {
+    if (selectedAccount?.publicKey) {
+      canopy.identify(selectedAccount.publicKey.toBase58());
+    } else {
+      canopy.reset();
+    }
+  }, [selectedAccount]);
+}
+```
+
+Call `useWalletIdentify()` in your root layout or a global component.
+
+## 4. Track screen views with Expo Router
+
+Use the `usePathname` hook to automatically track screen views:
+
+```tsx
+// components/ScreenTracker.tsx
+"use client";
+import { useEffect } from "react";
+import { usePathname } from "expo-router";
+import { useCanopy } from "@canopy/react-native";
+
+export function ScreenTracker() {
+  const canopy = useCanopy();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    canopy.screen(pathname);
+  }, [pathname]);
+
+  return null;
+}
+```
+
+Add `<ScreenTracker />` inside `CanopyProvider` in your root layout.
+
+## 5. Flush on app backgrounding
+
+Expo Router handles this automatically via the SDK's `AppState` listener. No additional
+configuration is needed.
+
+## App config plugin (optional)
+
+For managed workflow Expo apps, you may need to add `@react-native-async-storage/async-storage`
+to your `app.json` plugins if it requires native setup for your Expo SDK version.
+
+```json
+{
+  "expo": {
+    "plugins": [
+      "@react-native-async-storage/async-storage"
+    ]
+  }
+}
+```
+
+Check the [async-storage docs](https://react-native-async-storage.github.io/async-storage/docs/install)
+for the version you are using.

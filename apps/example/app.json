@@ -1,0 +1,24 @@
+{
+    "expo": {
+        "name": "Canopy Example",
+        "slug": "canopy-example",
+        "version": "1.0.0",
+        "scheme": "canopy-example",
+        "platforms": [
+            "android"
+        ],
+        "android": {
+            "package": "app.canopy.example",
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/adaptive-icon.png",
+                "backgroundColor": "#000000"
+            }
+        },
+        "experiments": {
+            "typedRoutes": true
+        },
+        "plugins": [
+            "./node_modules/expo-router/app.plugin.js"
+        ]
+    }
+}

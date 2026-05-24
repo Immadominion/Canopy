@@ -1,0 +1,42 @@
+{
+    "name": "@canopy/cli",
+    "version": "0.1.0",
+    "description": "Canopy CLI — beta track management and dApp Store tooling for Solana Mobile",
+    "private": false,
+    "type": "module",
+    "engines": {
+        "node": ">=24.0.0"
+    },
+    "bin": {
+        "canopy": "./dist/index.js"
+    },
+    "files": [
+        "dist"
+    ],
+    "exports": {
+        ".": {
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsup",
+        "dev": "tsup --watch",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint src --max-warnings 0",
+        "format:check": "prettier --check \"src/**/*.{ts}\" --ignore-path ../../.prettierignore"
+    },
+    "dependencies": {
+        "chalk": "^5.6.2",
+        "commander": "^14.0.3",
+        "ora": "^9.4.0"
+    },
+    "devDependencies": {
+        "@types/node": "^24.0.0",
+        "@typescript-eslint/eslint-plugin": "^8.32.1",
+        "@typescript-eslint/parser": "^8.32.1",
+        "eslint": "^9.27.0",
+        "prettier": "^3.5.3",
+        "tsup": "^8.5.1",
+        "typescript": "^5.8.3"
+    }
+}

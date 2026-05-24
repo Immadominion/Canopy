@@ -1,0 +1,43 @@
+name = "canopy-ingest"
+main = "src/index.ts"
+compatibility_date = "2025-05-21"
+compatibility_flags = ["nodejs_compat"]
+
+# Use Workers Unbound for higher CPU limits on event processing
+# usage_model = "unbound"
+
+[env.local]
+name = "canopy-ingest-local"
+
+[env.production]
+name = "canopy-ingest"
+routes = [{ pattern = "ingest.canopy.dev/*", custom_domain = true }]
+
+# KV namespaces
+[[kv_namespaces]]
+binding = "API_KEYS_KV"
+id = "REPLACE_WITH_KV_ID"
+preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
+
+[[kv_namespaces]]
+binding = "EVENT_DEDUP_KV"
+id = "REPLACE_WITH_DEDUP_KV_ID"
+preview_id = "REPLACE_WITH_DEDUP_KV_PREVIEW_ID"
+
+# Durable Objects for rate limiting
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["RateLimiter"]
+
+# Hyperdrive for Supabase PostgreSQL connection pooling
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "REPLACE_WITH_HYPERDRIVE_ID"
+
+# Environment variables (set via wrangler secret for sensitive values)
+[vars]
+ENVIRONMENT = "production"

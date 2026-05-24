@@ -1,0 +1,25 @@
+{
+    "name": "@canopy/action-release",
+    "version": "1.0.0",
+    "description": "GitHub Action: run pre-submission APK checks and create a Canopy release record",
+    "private": false,
+    "type": "commonjs",
+    "main": "dist/index.js",
+    "engines": {
+        "node": ">=24.0.0"
+    },
+    "scripts": {
+        "build": "tsup",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint src --max-warnings 0"
+    },
+    "dependencies": {
+        "@actions/core": "^3.0.1",
+        "@actions/exec": "^3.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^24.0.0",
+        "tsup": "^8.5.0",
+        "typescript": "^5.8.3"
+    }
+}

@@ -1,0 +1,49 @@
+{
+    "name": "@canopy/react-native",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Canopy SDK for React Native — wallet-keyed analytics for Solana Mobile / Seeker",
+    "engines": {
+        "node": ">=24.0.0"
+    },
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": {
+            "types": "./src/index.ts",
+            "import": "./src/index.ts"
+        }
+    },
+    "scripts": {
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint src --max-warnings 0",
+        "format:check": "prettier --check \"src/**/*.{ts,tsx}\" --ignore-path ../../.prettierignore"
+    },
+    "dependencies": {
+        "@canopy/types": "workspace:*",
+        "@react-native-async-storage/async-storage": "^2.2.0"
+    },
+    "peerDependencies": {
+        "react": ">=18",
+        "react-native": ">=0.73",
+        "@solana-mobile/mobile-wallet-adapter-protocol": "^2.2.8"
+    },
+    "peerDependenciesMeta": {
+        "@solana-mobile/mobile-wallet-adapter-protocol": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.27.0",
+        "@solana-mobile/mobile-wallet-adapter-protocol": "^2.2.8",
+        "@types/react": "^18.3.23",
+        "@types/react-native": "^0.73.0",
+        "@typescript-eslint/eslint-plugin": "^8.32.1",
+        "@typescript-eslint/parser": "^8.32.1",
+        "eslint": "^9.27.0",
+        "react": "^18.3.1",
+        "react-native": "^0.73.0",
+        "typescript": "^5.8.3",
+        "typescript-eslint": "^8.32.1"
+    }
+}

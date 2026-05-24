@@ -1,0 +1,249 @@
+---
+title: API Reference
+description: Full HTTP API reference for Canopy — all endpoints, authentication, and response formats.
+full: true
+---
+
+# API Reference
+
+<Callout type="info">
+  An interactive API explorer is available at [/api/reference](/api/reference). Try requests directly from your browser using your API key.
+</Callout>
+
+Base URL: `https://canopy.so/api/v1`
+
+All responses are JSON. All request bodies must be `Content-Type: application/json`.
+
+## Authentication
+
+Include your API key or session JWT in every request:
+
+```http
+Authorization: Bearer {token}
+```
+
+- **Dashboard sessions**: JWT from Sign-in with Solana (SIWS)
+- **CLI / CI**: API key created in **Settings → API Keys**
+
+## Error format
+
+All errors follow this shape:
+
+```json
+{
+  "error": {
+    "code": "SCREAMING_SNAKE_CASE",
+    "message": "Human-readable description",
+    "details": {}
+  }
+}
+```
+
+## Pagination
+
+Endpoints that return lists use cursor-based pagination:
+
+```http
+GET /api/v1/apps?cursor={id}&limit=20
+```
+
+Response includes a `next_cursor` field when more results are available.
+
+---
+
+## Apps
+
+### `GET /api/v1/apps`
+
+List all apps for the authenticated publisher.
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "My dApp",
+      "package_name": "com.example.mydapp",
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+### `POST /api/v1/apps`
+
+Create a new app.
+
+**Body:**
+```json
+{
+  "name": "My dApp",
+  "package_name": "com.example.mydapp"
+}
+```
+
+---
+
+## Beta Tracks
+
+### `GET /api/v1/apps/{appId}/tracks`
+
+List all beta tracks for an app.
+
+### `POST /api/v1/apps/{appId}/tracks`
+
+Create a new beta track. Requires KYC verification.
+
+**Body:**
+```json
+{
+  "name": "v1.0 Beta",
+  "description": "First beta release",
+  "tester_cap": 50,
+  "expires_at": "2024-02-01T00:00:00Z"
+}
+```
+
+**Constraints:**
+- `tester_cap` max: **200** (product invariant — cannot be increased)
+- `expires_at` max: **30 days** from creation
+
+### `GET /api/v1/tracks/{trackId}/testers`
+
+List testers on a beta track. Returns 404 for wallets not on the allowlist.
+
+### `POST /api/v1/tracks/{trackId}/testers`
+
+Add a tester by wallet address.
+
+**Body:**
+```json
+{ "wallet_address": "So11111111111111111111111111111111111111112" }
+```
+
+### `GET /api/v1/tracks/{trackId}/download`
+
+Get a signed download URL for the beta APK.
+
+**Constraints:**
+- Wallet must be on the allowlist
+- URL is valid for 15 minutes
+- Signed with HMAC-SHA256 bound to the requesting wallet
+
+---
+
+## Analytics
+
+### `GET /api/v1/analytics/{appId}`
+
+Summary analytics for the last 30 days (DAU, WAU, MAU, top events).
+
+### `GET /api/v1/analytics/{appId}/events`
+
+List tracked event names (top 50 by volume, last 30 days).
+
+### `GET /api/v1/analytics/{appId}/event-properties`
+
+Inspect property keys for a specific event.
+
+**Query parameters:**
+- `eventName` (required)
+- `since` (optional, ISO 8601)
+- `limit` (optional, max 50)
+
+### `GET /api/v1/analytics/{appId}/sessions/{sessionId}`
+
+Full event timeline for a specific session.
+
+### `GET /api/v1/analytics/{appId}/nft-cohort`
+
+Genesis Token holder cohort breakdown (last 30 days).
+
+---
+
+## Releases
+
+### `GET /api/v1/releases/{releaseId}`
+
+Get a release by ID.
+
+### `PATCH /api/v1/releases/{releaseId}`
+
+Update a release. Allowed fields: `status`, `releaseNotes`, `checkResults`, `rejectionReason`.
+
+### `GET /api/v1/releases/{releaseId}/submission-status`
+
+Get the current dApp Store submission status and guidance.
+
+### `POST /api/v1/releases/{releaseId}/submission-status/sync`
+
+Manually advance the submission status (for `submitted` → `in_review` → `published/rejected`).
+
+**Body:**
+```json
+{
+  "status": "in_review",
+  "rejection_reason": "Optional — only for rejected status"
+}
+```
+
+---
+
+## API Keys
+
+### `GET /api/v1/api-keys`
+
+List API keys for the organisation (hashed — plaintext is returned only once on creation).
+
+### `POST /api/v1/api-keys`
+
+Create a new API key.
+
+**Body:**
+```json
+{
+  "name": "CI/CD Key",
+  "scopes": ["releases:write", "tracks:read"]
+}
+```
+
+**Response** (plaintext key shown once):
+```json
+{
+  "data": {
+    "id": "uuid",
+    "name": "CI/CD Key",
+    "key": "cpy_live_xxxxxxxxxxxxxxxxxxxx",
+    "scopes": ["releases:write", "tracks:read"],
+    "created_at": "2024-01-01T00:00:00Z"
+  }
+}
+```
+
+### `DELETE /api/v1/api-keys/{keyId}`
+
+Revoke an API key immediately.
+
+---
+
+## Remote Config
+
+### `GET /api/v1/apps/{appId}/remote-config`
+
+Fetch the active remote config for an app. Returns default values if no config is active.
+
+### `PUT /api/v1/apps/{appId}/remote-config`
+
+Create or update the remote config.
+
+**Body:**
+```json
+{
+  "config": {
+    "feature_flags": { "new_ui": true },
+    "ab_test_variant": "B"
+  },
+  "conditions": []
+}
+```
