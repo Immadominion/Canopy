@@ -1,19 +1,15 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { DashboardNav } from "@/components/dashboard/dashboard-nav";
-import { SignOutButton } from "@/components/dashboard/sign-out-button";
+import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
+import { ScrollReset } from "@/components/dashboard/scroll-reset";
 import { getSessionWallet } from "@/lib/auth/session";
 
 /**
  * Dashboard layout — server component.
  *
- * Guards all /dashboard/* routes: unauthenticated requests are redirected to /sign-in.
- *
- * Nothing Design top navigation:
- * — CANOPY wordmark left
- * — Space Mono ALL CAPS nav links centre
- * — Truncated wallet address right (tertiary metadata)
+ * Guards all /dashboard/* routes: unauthenticated requests redirect to /sign-in.
+ * Left sidebar (collapsed icon rail, expands on hover / on wide screens); the
+ * content is offset by the rail width (64px, 248px at xl).
  */
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
     const session = await getSessionWallet();
@@ -21,39 +17,29 @@ export default async function DashboardLayout({ children }: { children: React.Re
         redirect("/sign-in");
     }
 
-    // Display the first 4 and last 4 chars of the wallet address.
     const addr = session.walletAddress;
-    const walletDisplay = `${addr.slice(0, 4)}...${addr.slice(-4)}`;
+    const walletDisplay = `${addr.slice(0, 4)}…${addr.slice(-4)}`;
 
     return (
-        <div className="min-h-screen bg-nd-black flex flex-col">
-            {/* ── Top nav bar ── */}
-            <header className="border-b border-nd-border px-nd-xl py-nd-md flex items-center justify-between gap-nd-xl">
-                {/* Left: wordmark + nav */}
-                <div className="flex items-center gap-nd-xl">
-                    <Link
-                        href="/dashboard/apps"
-                        className="font-mono text-nd-label text-nd-text-display uppercase tracking-[0.08em] shrink-0"
+        <div className="h-dvh overflow-hidden bg-nd-shell">
+            <DashboardSidebar walletDisplay={walletDisplay} />
+            {/* Content offset by the rail; the inner padding is the frame gap that
+                lets the dark-teal shell show around the floating panel. The panel
+                itself is the scroll viewport — the frame + padding stay fixed so
+                the rounded container is always fully visible. */}
+            <div className="h-full pl-16 xl:pl-[248px]">
+                <div className="h-full p-2 sm:p-3 pl-0 sm:pl-1">
+                    <div
+                        data-scroll-root
+                        className="nd-scroll h-full overflow-y-auto rounded-[28px] bg-nd-black border border-nd-border"
                     >
-                        CANOPY
-                    </Link>
-                    <DashboardNav />
+                        <ScrollReset />
+                        <main className="mx-auto w-full max-w-5xl px-nd-lg lg:px-nd-2xl py-nd-2xl">
+                            {children}
+                        </main>
+                    </div>
                 </div>
-
-                {/* Right: wallet address + sign-out (tertiary metadata) */}
-                <div className="flex items-center gap-nd-lg shrink-0">
-                    <span className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em]">
-                        {walletDisplay}
-                    </span>
-                    <span className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em]" aria-hidden>
-                        /
-                    </span>
-                    <SignOutButton />
-                </div>
-            </header>
-
-            {/* ── Page content ── */}
-            <main className="flex-1 px-nd-xl py-nd-2xl">{children}</main>
+            </div>
         </div>
     );
 }

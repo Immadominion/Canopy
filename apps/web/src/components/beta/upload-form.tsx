@@ -3,114 +3,253 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
-type FormStatus = "idle" | "uploading" | "error";
+import { parseApkManifestClient } from "@/lib/apk/manifest-client";
+import { UploadSimple, Package, X, WarningCircle } from "@phosphor-icons/react";
+
+type Stage = "idle" | "uploading" | "finalizing" | "error";
+
+interface Progress {
+    loaded: number;
+    total: number;
+    pct: number;
+    bytesPerSec: number;
+    etaSec: number;
+}
 
 interface Props {
     appId: string;
 }
 
+function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${kb.toFixed(0)} KB`;
+    const mb = kb / 1024;
+    return `${mb.toFixed(1)} MB`;
+}
+
+function formatEta(sec: number): string {
+    if (!isFinite(sec) || sec <= 0) return "—";
+    const s = Math.round(sec);
+    if (s < 60) return `${s}s`;
+    return `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
 export function UploadForm({ appId }: Props) {
     const router = useRouter();
     const fileRef = useRef<HTMLInputElement>(null);
+    const xhrRef = useRef<XMLHttpRequest | null>(null);
+    const speedRef = useRef(0);
 
-    const [status, setStatus] = useState<FormStatus>("idle");
-    const [errorCode, setErrorCode] = useState<string>("");
+    const [stage, setStage] = useState<Stage>("idle");
+    const [errorCode, setErrorCode] = useState("");
+    const [progress, setProgress] = useState<Progress | null>(null);
+
     const [versionName, setVersionName] = useState("");
     const [versionCode, setVersionCode] = useState("");
     const [expiresInDays, setExpiresInDays] = useState("30");
     const [releaseNotes, setReleaseNotes] = useState("");
-    const [fileName, setFileName] = useState<string>("");
+    const [file, setFile] = useState<File | null>(null);
+    const [detecting, setDetecting] = useState(false);
+    const [detectedPackage, setDetectedPackage] = useState<string | null>(null);
+    const [dragOver, setDragOver] = useState(false);
 
-    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    const busy = stage === "uploading" || stage === "finalizing";
+
+    async function handleFileSelect(f: File) {
+        if (!f.name.endsWith(".apk")) {
+            setErrorCode("INVALID_FILE_TYPE");
+            setStage("error");
+            return;
+        }
+        setFile(f);
+        setErrorCode("");
+        if (stage === "error") setStage("idle");
+        setDetectedPackage(null);
+        setDetecting(true);
+        try {
+            const info = await parseApkManifestClient(f);
+            if (info?.versionName) setVersionName(info.versionName);
+            if (info?.versionCode != null) setVersionCode(String(info.versionCode));
+            setDetectedPackage(info?.packageName ?? null);
+        } finally {
+            setDetecting(false);
+        }
+    }
+
+    function clearFile() {
+        setFile(null);
+        setDetectedPackage(null);
+        if (fileRef.current) fileRef.current.value = "";
+    }
+
+    function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         setErrorCode("");
 
-        const file = fileRef.current?.files?.[0];
         if (!file) {
             setErrorCode("NO_FILE");
-            setStatus("error");
+            setStage("error");
             return;
         }
-        if (!file.name.endsWith(".apk")) {
-            setErrorCode("INVALID_FILE_TYPE");
-            setStatus("error");
-            return;
-        }
-        if (!versionName.trim()) {
-            setErrorCode("VERSION_NAME_REQUIRED");
-            setStatus("error");
-            return;
-        }
-        const vc = parseInt(versionCode, 10);
-        if (!Number.isInteger(vc) || vc <= 0) {
-            setErrorCode("INVALID_VERSION_CODE");
-            setStatus("error");
-            return;
+        const vcTyped = versionCode.trim();
+        if (vcTyped) {
+            const n = parseInt(vcTyped, 10);
+            if (!Number.isInteger(n) || n <= 0) {
+                setErrorCode("INVALID_VERSION_CODE");
+                setStage("error");
+                return;
+            }
         }
         const days = parseInt(expiresInDays, 10);
         if (!Number.isInteger(days) || days < 1 || days > 30) {
             setErrorCode("INVALID_EXPIRY");
-            setStatus("error");
+            setStage("error");
             return;
         }
-
-        setStatus("uploading");
 
         const form = new FormData();
         form.append("apk", file);
         form.append("appId", appId);
-        form.append("versionName", versionName.trim());
-        form.append("versionCode", String(vc));
+        if (versionName.trim()) form.append("versionName", versionName.trim());
+        if (vcTyped) form.append("versionCode", vcTyped);
         form.append("expiresInDays", String(days));
-        if (releaseNotes.trim()) {
-            form.append("releaseNotes", releaseNotes.trim());
-        }
+        if (releaseNotes.trim()) form.append("releaseNotes", releaseNotes.trim());
 
-        try {
-            const res = await fetch("/api/v1/beta/upload", {
-                method: "POST",
-                body: form,
+        // XHR (not fetch) so we get real upload-progress events.
+        const xhr = new XMLHttpRequest();
+        xhrRef.current = xhr;
+        speedRef.current = 0;
+        let lastLoaded = 0;
+        let lastTime = Date.now();
+
+        setStage("uploading");
+        setProgress({ loaded: 0, total: file.size, pct: 0, bytesPerSec: 0, etaSec: Infinity });
+
+        xhr.open("POST", "/api/v1/beta/upload");
+
+        xhr.upload.onprogress = (ev) => {
+            if (!ev.lengthComputable) return;
+            const now = Date.now();
+            const dt = (now - lastTime) / 1000;
+            if (dt > 0) {
+                const inst = (ev.loaded - lastLoaded) / dt;
+                speedRef.current = speedRef.current ? speedRef.current * 0.7 + inst * 0.3 : inst;
+                lastLoaded = ev.loaded;
+                lastTime = now;
+            }
+            const remaining = ev.total - ev.loaded;
+            setProgress({
+                loaded: ev.loaded,
+                total: ev.total,
+                pct: Math.round((ev.loaded / ev.total) * 100),
+                bytesPerSec: speedRef.current,
+                etaSec: speedRef.current > 0 ? remaining / speedRef.current : Infinity,
             });
+        };
 
-            if (!res.ok) {
-                const data = (await res.json()) as { error?: { code?: string } };
-                setErrorCode(data.error?.code ?? "UPLOAD_FAILED");
-                setStatus("error");
+        // Bytes fully sent — server is now hashing + storing + kicking off the scan.
+        xhr.upload.onload = () => setStage("finalizing");
+
+        xhr.onload = () => {
+            xhrRef.current = null;
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const data = JSON.parse(xhr.responseText) as { trackId: string };
+                    router.push(`/dashboard/apps/${appId}/tracks/${data.trackId}`);
+                } catch {
+                    setErrorCode("BAD_RESPONSE");
+                    setStage("error");
+                }
                 return;
             }
+            try {
+                const data = JSON.parse(xhr.responseText) as { error?: { code?: string } };
+                setErrorCode(data.error?.code ?? "UPLOAD_FAILED");
+            } catch {
+                setErrorCode(`HTTP_${xhr.status}`);
+            }
+            setStage("error");
+        };
 
-            const data = (await res.json()) as { trackId: string };
-            router.push(`/dashboard/apps/${appId}/tracks/${data.trackId}`);
-        } catch {
+        xhr.onerror = () => {
+            xhrRef.current = null;
             setErrorCode("NETWORK_ERROR");
-            setStatus("error");
-        }
+            setStage("error");
+        };
+        xhr.onabort = () => {
+            xhrRef.current = null;
+            setProgress(null);
+            setStage("idle");
+        };
+
+        xhr.send(form);
     }
 
-    const inputClass =
-        "w-full bg-transparent border-b border-nd-border focus:border-nd-border-visible outline-none font-mono text-nd-body text-nd-text-primary py-nd-sm placeholder:text-nd-text-disabled transition-colors";
-
-    const labelClass =
-        "font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] mb-nd-2xs block";
+    function cancelUpload() {
+        xhrRef.current?.abort();
+    }
 
     return (
-        <form onSubmit={handleSubmit} className="max-w-lg">
-            {/* ── APK File ── */}
+        <form onSubmit={handleSubmit} className="max-w-xl">
+            {/* ── Dropzone ── */}
             <div className="mb-nd-xl">
-                <label className={labelClass}>APK FILE</label>
-                <div
-                    className="border border-nd-border px-nd-lg py-nd-md cursor-pointer hover:border-nd-border-visible transition-colors"
-                    onClick={() => fileRef.current?.click()}
-                >
-                    <p className="font-mono text-nd-body text-nd-text-secondary">
-                        {fileName || "[ SELECT .APK FILE ]"}
-                    </p>
-                    {fileName && (
-                        <p className="font-mono text-nd-caption text-nd-text-disabled mt-nd-2xs">
-                            {fileName}
-                        </p>
-                    )}
-                </div>
+                <span className="field-label">APK file</span>
+                {!file ? (
+                    <button
+                        type="button"
+                        onClick={() => fileRef.current?.click()}
+                        onDragOver={(e) => {
+                            e.preventDefault();
+                            setDragOver(true);
+                        }}
+                        onDragLeave={() => setDragOver(false)}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            setDragOver(false);
+                            const f = e.dataTransfer.files?.[0];
+                            if (f) void handleFileSelect(f);
+                        }}
+                        className={`w-full flex flex-col items-center justify-center gap-nd-sm rounded-nd-card border border-dashed px-nd-lg py-nd-2xl transition-colors ${
+                            dragOver
+                                ? "border-nd-brand bg-nd-brand-subtle"
+                                : "border-nd-border-visible bg-nd-surface hover:border-nd-text-disabled"
+                        }`}
+                    >
+                        <UploadSimple size={28} className="text-nd-text-secondary" />
+                        <span className="text-nd-body-sm text-nd-text-primary">
+                            Drop your <span className="font-mono">.apk</span> here or click to browse
+                        </span>
+                        <span className="text-nd-caption text-nd-text-disabled">Up to 200 MB</span>
+                    </button>
+                ) : (
+                    <div className="card flex items-center gap-nd-md p-nd-md">
+                        <span className="flex items-center justify-center w-10 h-10 rounded-nd-card-compact bg-nd-brand-subtle text-nd-brand-hover shrink-0">
+                            <Package size={20} weight="fill" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-nd-body-sm text-nd-text-primary truncate">{file.name}</p>
+                            <p className="text-nd-caption text-nd-text-secondary mt-0.5 font-mono">
+                                {formatBytes(file.size)}
+                                {detecting
+                                    ? " · reading manifest…"
+                                    : detectedPackage
+                                      ? ` · ${detectedPackage}`
+                                      : ""}
+                            </p>
+                        </div>
+                        {!busy && (
+                            <button
+                                type="button"
+                                onClick={clearFile}
+                                className="btn-ghost shrink-0"
+                                aria-label="Remove file"
+                            >
+                                <X size={18} />
+                            </button>
+                        )}
+                    </div>
+                )}
                 <input
                     ref={fileRef}
                     type="file"
@@ -118,111 +257,158 @@ export function UploadForm({ appId }: Props) {
                     className="hidden"
                     onChange={(e) => {
                         const f = e.target.files?.[0];
-                        if (f) setFileName(f.name);
+                        if (f) void handleFileSelect(f);
                     }}
                 />
             </div>
 
-            {/* ── Version Name ── */}
-            <div className="mb-nd-xl">
-                <label htmlFor="version-name" className={labelClass}>
-                    VERSION NAME
-                </label>
-                <input
-                    id="version-name"
-                    type="text"
-                    className={inputClass}
-                    placeholder="e.g. 1.2.3"
-                    maxLength={64}
-                    value={versionName}
-                    onChange={(e) => setVersionName(e.target.value)}
-                    disabled={status === "uploading"}
-                    autoComplete="off"
-                />
-            </div>
+            {/* ── Progress ──
+                Two honest phases:
+                  • uploading  — real bytes sent (xhr.upload.onprogress): exact %, speed, ETA
+                  • processing — bytes are sent; the server is hashing + storing to R2 +
+                    starting the scan. There's no client-visible percentage for that, so
+                    we show an indeterminate bar rather than a fake 100%. */}
+            {busy && progress && (
+                <div className="card p-nd-md mb-nd-xl">
+                    {stage === "uploading" ? (
+                        <>
+                            <div className="flex items-center justify-between mb-nd-sm">
+                                <span className="text-nd-body-sm font-medium text-nd-text-primary">
+                                    Uploading…
+                                </span>
+                                <span className="font-mono text-nd-caption text-nd-brand-hover">
+                                    {progress.pct}%
+                                </span>
+                            </div>
+                            <div className="progress">
+                                <div className="progress__bar" style={{ width: `${progress.pct}%` }} />
+                            </div>
+                            <div className="flex items-center justify-between mt-nd-sm font-mono text-nd-caption text-nd-text-secondary">
+                                <span>
+                                    {formatBytes(progress.loaded)} / {formatBytes(progress.total)}
+                                </span>
+                                <span>
+                                    {formatBytes(progress.bytesPerSec)}/s · ETA {formatEta(progress.etaSec)}
+                                </span>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="mb-nd-sm">
+                                <span className="text-nd-body-sm font-medium text-nd-text-primary">
+                                    Processing on the server…
+                                </span>
+                            </div>
+                            <div className="progress">
+                                <div className="progress__bar--indeterminate" />
+                            </div>
+                            <p className="mt-nd-sm text-nd-caption text-nd-text-secondary leading-relaxed">
+                                Upload complete. The server is hashing the APK, storing it, and
+                                starting the malware scan — there&apos;s no exact percentage for this
+                                step. The scan itself can take a few minutes for a brand-new build
+                                while VirusTotal analyzes it; we&apos;ll take you to the build page
+                                where it updates automatically.
+                            </p>
+                        </>
+                    )}
+                </div>
+            )}
 
-            {/* ── Version Code ── */}
-            <div className="mb-nd-xl">
-                <label htmlFor="version-code" className={labelClass}>
-                    VERSION CODE
-                </label>
-                <input
-                    id="version-code"
-                    type="text"
-                    inputMode="numeric"
-                    className={inputClass}
-                    placeholder="e.g. 123 (integer)"
-                    value={versionCode}
-                    onChange={(e) => setVersionCode(e.target.value.replace(/\D/g, ""))}
-                    disabled={status === "uploading"}
-                    autoComplete="off"
-                />
-            </div>
+            {/* ── Fields ── */}
+            <fieldset disabled={busy} className="space-y-nd-xl border-0 p-0 m-0">
+                <div>
+                    <label htmlFor="version-name" className="field-label">
+                        Version name{" "}
+                        <span className="text-nd-text-disabled font-normal">
+                            (read from the APK — edit to override)
+                        </span>
+                    </label>
+                    <input
+                        id="version-name"
+                        type="text"
+                        className="input font-mono"
+                        placeholder="e.g. 1.2.3"
+                        maxLength={64}
+                        value={versionName}
+                        onChange={(e) => setVersionName(e.target.value)}
+                        autoComplete="off"
+                    />
+                </div>
 
-            {/* ── Expiry ── */}
-            <div className="mb-nd-xl">
-                <label htmlFor="expires-in-days" className={labelClass}>
-                    EXPIRES IN (DAYS) — MAX 30
-                </label>
-                <input
-                    id="expires-in-days"
-                    type="text"
-                    inputMode="numeric"
-                    className={inputClass}
-                    placeholder="30"
-                    value={expiresInDays}
-                    onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, "");
-                        setExpiresInDays(val);
-                    }}
-                    disabled={status === "uploading"}
-                    autoComplete="off"
-                />
-            </div>
+                <div>
+                    <label htmlFor="version-code" className="field-label">
+                        Version code{" "}
+                        <span className="text-nd-text-disabled font-normal">
+                            (read from the APK — edit to override)
+                        </span>
+                    </label>
+                    <input
+                        id="version-code"
+                        type="text"
+                        inputMode="numeric"
+                        className="input font-mono"
+                        placeholder="e.g. 123"
+                        value={versionCode}
+                        onChange={(e) => setVersionCode(e.target.value.replace(/\D/g, ""))}
+                        autoComplete="off"
+                    />
+                </div>
 
-            {/* ── Release Notes (optional) ── */}
-            <div className="mb-nd-2xl">
-                <label htmlFor="release-notes" className={labelClass}>
-                    RELEASE NOTES{" "}
-                    <span className="text-nd-text-disabled normal-case tracking-normal">
-                        (optional)
-                    </span>
-                </label>
-                <textarea
-                    id="release-notes"
-                    className={`${inputClass} resize-none min-h-[80px]`}
-                    placeholder="What changed in this build?"
-                    maxLength={2000}
-                    value={releaseNotes}
-                    onChange={(e) => setReleaseNotes(e.target.value)}
-                    disabled={status === "uploading"}
-                />
-            </div>
+                <div>
+                    <label htmlFor="expires-in-days" className="field-label">
+                        Expires in (days) — max 30
+                    </label>
+                    <input
+                        id="expires-in-days"
+                        type="text"
+                        inputMode="numeric"
+                        className="input font-mono"
+                        placeholder="30"
+                        value={expiresInDays}
+                        onChange={(e) => setExpiresInDays(e.target.value.replace(/\D/g, ""))}
+                        autoComplete="off"
+                    />
+                </div>
+
+                <div>
+                    <label htmlFor="release-notes" className="field-label">
+                        Release notes{" "}
+                        <span className="text-nd-text-disabled font-normal">(optional)</span>
+                    </label>
+                    <textarea
+                        id="release-notes"
+                        className="input min-h-[88px]"
+                        placeholder="What changed in this build?"
+                        maxLength={2000}
+                        value={releaseNotes}
+                        onChange={(e) => setReleaseNotes(e.target.value)}
+                    />
+                </div>
+            </fieldset>
 
             {/* ── Error ── */}
-            {status === "error" && errorCode && (
-                <p className="font-mono text-nd-body text-nd-accent mb-nd-lg">
-                    [ ERROR: {errorCode} ]
-                </p>
+            {stage === "error" && errorCode && (
+                <div className="flex items-center gap-nd-sm mt-nd-lg text-nd-accent">
+                    <WarningCircle size={18} weight="fill" />
+                    <span className="text-nd-body-sm">{errorCode.replace(/_/g, " ").toLowerCase()}</span>
+                </div>
             )}
 
             {/* ── Actions ── */}
-            <div className="flex items-center gap-nd-xl">
-                <button
-                    type="submit"
-                    disabled={status === "uploading"}
-                    className="font-mono text-nd-label text-nd-text-display uppercase tracking-[0.08em] border border-nd-border px-nd-xl py-nd-sm hover:border-nd-border-visible transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                    {status === "uploading" ? "[ UPLOADING... ]" : "UPLOAD BUILD →"}
-                </button>
-
-                {status !== "uploading" && (
-                    <a
-                        href={`/dashboard/apps/${appId}`}
-                        className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] hover:text-nd-text-secondary transition-colors"
-                    >
-                        CANCEL
-                    </a>
+            <div className="flex items-center gap-nd-md mt-nd-2xl">
+                {busy ? (
+                    <button type="button" onClick={cancelUpload} className="btn-secondary">
+                        <X size={16} /> Cancel
+                    </button>
+                ) : (
+                    <>
+                        <button type="submit" className="btn-primary" disabled={!file || detecting}>
+                            <UploadSimple size={16} weight="bold" /> Upload build
+                        </button>
+                        <a href={`/dashboard/apps/${appId}`} className="btn-ghost">
+                            Cancel
+                        </a>
+                    </>
                 )}
             </div>
         </form>

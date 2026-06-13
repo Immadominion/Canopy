@@ -13,24 +13,40 @@
 -- Continuous aggregate: distinct wallets per day broken down by has_genesis_token.
 -- Mirrors the pattern of analytics_seeker_daily (by is_seeker).
 
-CREATE MATERIALIZED VIEW analytics_nft_daily
-WITH (timescaledb.continuous) AS
-SELECT
-  app_id,
-  time_bucket('1 day', timestamp)                          AS bucket,
-  COALESCE(has_genesis_token, FALSE)                       AS has_genesis_token,
-  COUNT(DISTINCT wallet_hash)::BIGINT                      AS distinct_wallets
-FROM analytics_events
-GROUP BY app_id, time_bucket('1 day', timestamp), COALESCE(has_genesis_token, FALSE)
-WITH NO DATA;
+-- With TimescaleDB: continuous aggregate (materialized + auto-refreshed).
+-- Without it: a plain live view with identical columns (see 0002 fallback).
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+    EXECUTE $ddl$
+      CREATE MATERIALIZED VIEW analytics_nft_daily
+      WITH (timescaledb.continuous) AS
+      SELECT
+        app_id,
+        time_bucket('1 day', timestamp)                          AS bucket,
+        COALESCE(has_genesis_token, FALSE)                       AS has_genesis_token,
+        COUNT(DISTINCT wallet_hash)::BIGINT                      AS distinct_wallets
+      FROM analytics_events
+      GROUP BY app_id, time_bucket('1 day', timestamp), COALESCE(has_genesis_token, FALSE)
+      WITH NO DATA $ddl$;
 
--- Refresh policy: keep aggregate up to date in near-real-time
-SELECT add_continuous_aggregate_policy(
-  'analytics_nft_daily',
-  start_offset  => INTERVAL '3 days',
-  end_offset    => INTERVAL '1 hour',
-  schedule_interval => INTERVAL '1 hour'
-);
+    PERFORM add_continuous_aggregate_policy(
+      'analytics_nft_daily',
+      start_offset  => INTERVAL '3 days',
+      end_offset    => INTERVAL '1 hour',
+      schedule_interval => INTERVAL '1 hour');
+  ELSE
+    EXECUTE $ddl$
+      CREATE VIEW analytics_nft_daily AS
+      SELECT
+        app_id,
+        time_bucket('1 day', timestamp)                          AS bucket,
+        COALESCE(has_genesis_token, FALSE)                       AS has_genesis_token,
+        COUNT(DISTINCT wallet_hash)::BIGINT                      AS distinct_wallets
+      FROM analytics_events
+      GROUP BY app_id, time_bucket('1 day', timestamp), COALESCE(has_genesis_token, FALSE) $ddl$;
+  END IF;
+END $$;
 
 
 -- ─── 2. session_id index ─────────────────────────────────────────────────────

@@ -3,16 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
+import { Plus, WarningCircle } from "@phosphor-icons/react";
+
 type FormStatus = "idle" | "submitting" | "error";
 
 /**
- * Inline create-app form — Nothing Design.
- *
- * Inputs: underline style, Space Grotesk, no rounded corners.
- * Labels: Space Mono ALL CAPS.
- * Status: inline text, no toast, no skeleton.
- *
- * On success, calls router.refresh() to re-fetch the RSC apps list.
+ * Inline create-app form. Trigger is a brand CTA; expands into a card with the
+ * shared input/button styles. On success, refreshes the RSC apps list.
  */
 export function CreateAppForm() {
     const router = useRouter();
@@ -40,7 +37,7 @@ export function CreateAppForm() {
                 const res = await fetch("/api/v1/apps", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ name, package_name: packageName }),
+                    body: JSON.stringify({ name, packageName }),
                 });
 
                 if (!res.ok) {
@@ -64,31 +61,19 @@ export function CreateAppForm() {
 
     if (!visible) {
         return (
-            <button
-                onClick={() => setVisible(true)}
-                className="font-mono text-nd-label text-nd-text-primary uppercase tracking-[0.08em] border border-nd-border-visible px-nd-md py-nd-sm hover:border-nd-text-secondary transition-colors"
-            >
-                + NEW APP
+            <button onClick={() => setVisible(true)} className="btn-primary">
+                <Plus size={16} weight="bold" /> New app
             </button>
         );
     }
 
     return (
-        <form
-            onSubmit={(e) => void handleSubmit(e)}
-            className="border border-nd-border-visible p-nd-xl space-y-nd-lg"
-        >
-            <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em]">
-                CREATE APP
-            </p>
+        <form onSubmit={(e) => void handleSubmit(e)} className="card p-nd-lg w-full max-w-md space-y-nd-lg">
+            <p className="text-nd-body font-semibold text-nd-text-display">Create app</p>
 
-            {/* Name field */}
             <div>
-                <label
-                    htmlFor="app-name"
-                    className="block font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] mb-nd-xs"
-                >
-                    NAME
+                <label htmlFor="app-name" className="field-label">
+                    Name
                 </label>
                 <input
                     id="app-name"
@@ -99,17 +84,13 @@ export function CreateAppForm() {
                     required
                     maxLength={120}
                     disabled={formStatus === "submitting"}
-                    className="w-full bg-transparent border-b border-nd-border-visible focus:border-nd-text-display outline-none py-nd-sm font-body text-nd-body text-nd-text-primary placeholder:text-nd-text-disabled transition-colors"
+                    className="input"
                 />
             </div>
 
-            {/* Package name field */}
             <div>
-                <label
-                    htmlFor="app-package"
-                    className="block font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] mb-nd-xs"
-                >
-                    ANDROID PACKAGE NAME
+                <label htmlFor="app-package" className="field-label">
+                    Android package name
                 </label>
                 <input
                     id="app-package"
@@ -120,34 +101,33 @@ export function CreateAppForm() {
                     required
                     maxLength={255}
                     disabled={formStatus === "submitting"}
-                    className="w-full bg-transparent border-b border-nd-border-visible focus:border-nd-text-display outline-none py-nd-sm font-mono text-nd-body-sm text-nd-text-primary placeholder:text-nd-text-disabled transition-colors"
+                    className="input font-mono"
                 />
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-nd-lg pt-nd-sm">
+            <div className="flex items-center gap-nd-md pt-nd-2xs">
                 <button
                     type="submit"
                     disabled={formStatus === "submitting" || !name || !packageName}
-                    className="font-mono text-nd-label text-nd-black bg-nd-text-display uppercase tracking-[0.08em] px-nd-lg py-nd-sm disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+                    className="btn-primary"
                 >
-                    {formStatus === "submitting" ? "CREATING..." : "CREATE →"}
+                    {formStatus === "submitting" ? "Creating…" : "Create"}
                 </button>
                 <button
                     type="button"
                     onClick={reset}
                     disabled={formStatus === "submitting"}
-                    className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] hover:text-nd-text-secondary transition-colors"
+                    className="btn-ghost"
                 >
-                    CANCEL
+                    Cancel
                 </button>
             </div>
 
-            {/* Inline error — the one accent moment on this form */}
             {formStatus === "error" && (
-                <p className="font-mono text-nd-label text-nd-accent uppercase tracking-[0.08em]">
-                    [ ERROR: {errorMessage} ]
-                </p>
+                <div className="flex items-center gap-nd-sm text-nd-accent">
+                    <WarningCircle size={16} weight="fill" />
+                    <span className="text-nd-body-sm">{errorMessage.replace(/_/g, " ").toLowerCase()}</span>
+                </div>
             )}
         </form>
     );

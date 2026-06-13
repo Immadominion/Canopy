@@ -58,7 +58,7 @@ export default async function RetentionPage({ params }: Props) {
     const day0Count = retention.find((r) => r.day_offset === 0)?.wallet_count ?? 0;
 
     return (
-        <div className="min-h-screen bg-black text-white p-8 space-y-10">
+        <div className="min-h-full bg-black text-white p-8 space-y-10">
             {/* ── Layer 1: Hero ─────────────────────────────────────────────── */}
             <header className="relative overflow-hidden border border-white/10 p-8">
                 <div

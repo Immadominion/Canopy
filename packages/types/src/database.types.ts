@@ -21,6 +21,7 @@ export interface Database {
                     wallet_hash: string; // SHA-256 of wallet_address
                     kyc_verified: boolean;
                     kyc_verified_at: string | null; // timestamptz
+                    verification_status: "unverified" | "pending" | "approved" | "rejected" | "banned";
                     plan: "free" | "pro" | "enterprise";
                     display_name: string | null;
                     website_url: string | null;
@@ -33,6 +34,7 @@ export interface Database {
                     wallet_hash: string;
                     kyc_verified?: boolean;
                     kyc_verified_at?: string | null;
+                    verification_status?: "unverified" | "pending" | "approved" | "rejected" | "banned";
                     plan?: "free" | "pro" | "enterprise";
                     display_name?: string | null;
                     website_url?: string | null;
@@ -45,10 +47,83 @@ export interface Database {
                     wallet_hash?: string;
                     kyc_verified?: boolean;
                     kyc_verified_at?: string | null;
+                    verification_status?: "unverified" | "pending" | "approved" | "rejected" | "banned";
                     plan?: "free" | "pro" | "enterprise";
                     display_name?: string | null;
                     website_url?: string | null;
                     updated_at?: string;
+                };
+                Relationships: [];
+            };
+
+            access_requests: {
+                Row: {
+                    id: string; // uuid
+                    publisher_id: string; // fk publishers.id
+                    wallet_hash: string;
+                    display_name: string;
+                    project_summary: string;
+                    contact_telegram: string | null;
+                    code: string; // short human code
+                    onchain_app_nft: boolean | null;
+                    status: "pending" | "approved" | "rejected";
+                    decided_at: string | null;
+                    decided_by: string | null;
+                    created_at: string;
+                    updated_at: string;
+                };
+                Insert: {
+                    id?: string;
+                    publisher_id: string;
+                    wallet_hash: string;
+                    display_name: string;
+                    project_summary: string;
+                    contact_telegram?: string | null;
+                    code: string;
+                    onchain_app_nft?: boolean | null;
+                    status?: "pending" | "approved" | "rejected";
+                    decided_at?: string | null;
+                    decided_by?: string | null;
+                    created_at?: string;
+                    updated_at?: string;
+                };
+                Update: {
+                    id?: string;
+                    status?: "pending" | "approved" | "rejected";
+                    decided_at?: string | null;
+                    decided_by?: string | null;
+                    updated_at?: string;
+                };
+                Relationships: [];
+            };
+
+            billing_payments: {
+                Row: {
+                    id: string;
+                    org_id: string;
+                    plan: "pro" | "enterprise";
+                    interval: "monthly" | "annual";
+                    amount_base_units: number;
+                    tx_signature: string;
+                    payer_wallet: string | null;
+                    period_start: string;
+                    period_end: string;
+                    created_at: string;
+                };
+                Insert: {
+                    id?: string;
+                    org_id: string;
+                    plan: "pro" | "enterprise";
+                    interval: "monthly" | "annual";
+                    amount_base_units: number;
+                    tx_signature: string;
+                    payer_wallet?: string | null;
+                    period_start?: string;
+                    period_end: string;
+                    created_at?: string;
+                };
+                Update: {
+                    period_end?: string;
                 };
                 Relationships: [];
             };
@@ -822,8 +897,8 @@ export interface Database {
 
         Functions: {
             increment_tester_count: {
-                Args: { track_id: string };
-                Returns: { new_count: number; over_cap: boolean };
+                Args: { p_track_id: string };
+                Returns: { new_count: number; over_cap: boolean }[];
             };
             get_top_events: {
                 Args: { _app_id: string; _since: string; _limit?: number };
@@ -853,6 +928,10 @@ export interface Database {
                 Args: { _app_id: string; _since: string };
                 Returns: { has_genesis_token: boolean; distinct_wallets: number }[];
             };
+            delete_app_cascade: {
+                Args: { p_app_id: string };
+                Returns: { r2_key: string }[];
+            };
         };
 
         Enums: {
@@ -873,6 +952,8 @@ export type BetaTrackStatus =
 
 // Convenience row types
 export type Publisher = Database["public"]["Tables"]["publishers"]["Row"];
+export type PublisherVerificationStatus = Publisher["verification_status"];
+export type AccessRequest = Database["public"]["Tables"]["access_requests"]["Row"];
 export type App = Database["public"]["Tables"]["apps"]["Row"];
 export type BetaTrack = Database["public"]["Tables"]["beta_tracks"]["Row"];
 export type BetaTester = Database["public"]["Tables"]["beta_testers"]["Row"];

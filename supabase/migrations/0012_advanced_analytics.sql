@@ -24,7 +24,9 @@ CREATE TABLE funnel_definitions (
 
 CREATE INDEX funnel_definitions_app_id_idx ON funnel_definitions (app_id);
 
-SELECT trigger_set_updated_at('funnel_definitions');
+CREATE TRIGGER funnel_definitions_updated_at
+  BEFORE UPDATE ON funnel_definitions
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 ALTER TABLE funnel_definitions ENABLE ROW LEVEL SECURITY;
 
@@ -72,7 +74,9 @@ CREATE TABLE webhook_endpoints (
 
 CREATE INDEX webhook_endpoints_app_id_idx ON webhook_endpoints (app_id);
 
-SELECT trigger_set_updated_at('webhook_endpoints');
+CREATE TRIGGER webhook_endpoints_updated_at
+  BEFORE UPDATE ON webhook_endpoints
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 ALTER TABLE webhook_endpoints ENABLE ROW LEVEL SECURITY;
 
@@ -172,23 +176,23 @@ BEGIN
 
   -- Step 0: all wallets that fired step 1 in the window
   INSERT INTO _funnel_wallets_step
-  SELECT 0, wallet_hash, min(time)
+  SELECT 0, wallet_hash, min(timestamp)
   FROM analytics_events
   WHERE app_id = _app_id
     AND name   = _steps[1]
-    AND time BETWEEN _since AND _until
+    AND timestamp BETWEEN _since AND _until
   GROUP BY wallet_hash;
 
   -- Steps 1..N-1: wallets that also completed the next step after the previous one
   FOR _i IN 1 .. (_step_count - 1) LOOP
     INSERT INTO _funnel_wallets_step
-    SELECT _i, e.wallet_hash, min(e.time)
+    SELECT _i, e.wallet_hash, min(e.timestamp)
     FROM analytics_events e
     JOIN _funnel_wallets_step s ON s.wallet_hash = e.wallet_hash AND s.step_idx = _i - 1
     WHERE e.app_id = _app_id
       AND e.name   = _steps[_i + 1]
-      AND e.time   > s.event_time
-      AND e.time BETWEEN _since AND _until
+      AND e.timestamp   > s.event_time
+      AND e.timestamp BETWEEN _since AND _until
     GROUP BY e.wallet_hash;
   END LOOP;
 
@@ -223,24 +227,24 @@ SET search_path = public
 AS $$
 WITH cohort AS (
   -- Wallets first seen in the window (day 0 = first event in window)
-  SELECT wallet_hash, date_trunc('day', min(time)) AS cohort_day
+  SELECT wallet_hash, date_trunc('day', min(timestamp)) AS cohort_day
   FROM analytics_events
   WHERE app_id = _app_id
-    AND time BETWEEN _since AND _until
+    AND timestamp BETWEEN _since AND _until
   GROUP BY wallet_hash
 ),
 activity AS (
   -- All active days for those wallets in the window
-  SELECT DISTINCT e.wallet_hash, date_trunc('day', e.time) AS active_day
+  SELECT DISTINCT e.wallet_hash, date_trunc('day', e.timestamp) AS active_day
   FROM analytics_events e
   JOIN cohort c ON c.wallet_hash = e.wallet_hash
   WHERE e.app_id = _app_id
-    AND e.time BETWEEN _since AND (_until + (_max_days || ' days')::INTERVAL)
+    AND e.timestamp BETWEEN _since AND (_until + (_max_days || ' days')::INTERVAL)
 ),
 retention_raw AS (
   SELECT
-    (a.active_day - c.cohort_day)::INT / 86400 AS day_offset,
-    count(DISTINCT a.wallet_hash)              AS wallet_count
+    (a.active_day::date - c.cohort_day::date) AS day_offset,
+    count(DISTINCT a.wallet_hash)             AS wallet_count
   FROM activity a
   JOIN cohort c ON c.wallet_hash = a.wallet_hash
   WHERE (a.active_day - c.cohort_day) >= INTERVAL '0 days'

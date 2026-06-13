@@ -53,13 +53,16 @@ export async function GET(request: Request, { params }: RouteParams): Promise<Ne
     const admin = createSupabaseAdminClient();
     const { data: track, error } = await admin
         .from("beta_tracks")
-        .select("id, status, r2_key, apk_sha256, apk_size_bytes, expires_at")
+        .select("id, status, r2_key, apk_sha256, apk_size_bytes, expires_at, apk_deleted_at")
         .eq("id", trackId)
         .maybeSingle();
 
     if (error || !track) return notFound();
     if (track.status !== "active") return notFound();
     if (new Date(track.expires_at).getTime() < Date.now()) return notFound();
+    // Defense-in-depth: never attempt to serve a purged binary (status should
+    // already preclude this, but the R2 object may be gone).
+    if (track.apk_deleted_at) return notFound();
 
     // Re-verify that the wallet on the signed URL is STILL on the allowlist
     // (could have been revoked between URL issuance and download).

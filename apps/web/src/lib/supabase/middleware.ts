@@ -30,12 +30,28 @@ export async function updateSession(request: NextRequest) {
                 );
             },
         },
+        auth: {
+            // Server-side: no background refresh ticker / no session persistence.
+            // The on-demand refresh inside getUser() still runs. This stops the
+            // noisy background refresh attempts whose fetch to a local Supabase
+            // flakes under the Edge runtime in dev.
+            autoRefreshToken: false,
+            persistSession: false,
+            detectSessionInUrl: false,
+        },
     });
 
-    // Refresh session — do NOT remove this
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    // Refresh session — do NOT remove this. Tolerate transient reachability
+    // failures (local-dev Edge fetch to 127.0.0.1 can flake): never crash the
+    // request or bounce a logged-in user; the page's own server-side auth
+    // (getSessionWallet, on the Node runtime) makes the authoritative call.
+    let user = null;
+    try {
+        const result = await supabase.auth.getUser();
+        user = result.data.user;
+    } catch {
+        return supabaseResponse;
+    }
 
     // Protected routes — redirect to sign-in if unauthenticated
     const isProtectedRoute =

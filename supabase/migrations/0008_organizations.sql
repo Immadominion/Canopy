@@ -23,17 +23,8 @@ CREATE UNIQUE INDEX organizations_owner_idx ON organizations (owner_id);
 
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
 
--- Active members (joined_at IS NOT NULL) can read their org.
-CREATE POLICY "organizations_select_member" ON organizations
-  FOR SELECT
-  USING (
-    owner_id = (SELECT id FROM publishers WHERE auth.uid()::TEXT = id::TEXT)
-    OR id IN (
-      SELECT org_id FROM org_members
-      WHERE publisher_id = (SELECT id FROM publishers WHERE auth.uid()::TEXT = id::TEXT)
-        AND joined_at IS NOT NULL
-    )
-  );
+-- Owner can always read their org. The member-read policy is defined after
+-- org_members exists (see below) since it references that table.
 
 -- Only the owner can update org settings.
 CREATE POLICY "organizations_update_owner" ON organizations
@@ -70,6 +61,20 @@ CREATE INDEX org_members_org_id_idx    ON org_members (org_id);
 CREATE INDEX org_members_publisher_idx ON org_members (publisher_id);
 
 ALTER TABLE org_members ENABLE ROW LEVEL SECURITY;
+
+-- Active members (joined_at IS NOT NULL) can read their org.
+-- Defined here (not with the other organizations policies) because it
+-- references org_members, which must exist first.
+CREATE POLICY "organizations_select_member" ON organizations
+  FOR SELECT
+  USING (
+    owner_id = (SELECT id FROM publishers WHERE auth.uid()::TEXT = id::TEXT)
+    OR id IN (
+      SELECT org_id FROM org_members
+      WHERE publisher_id = (SELECT id FROM publishers WHERE auth.uid()::TEXT = id::TEXT)
+        AND joined_at IS NOT NULL
+    )
+  );
 
 -- Active members can see all membership rows in their org.
 CREATE POLICY "org_members_select_member" ON org_members

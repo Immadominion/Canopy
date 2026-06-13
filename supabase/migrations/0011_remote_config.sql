@@ -57,7 +57,9 @@ CREATE TABLE remote_configs (
 
 CREATE INDEX remote_configs_app_id_idx ON remote_configs (app_id);
 
-SELECT trigger_set_updated_at('remote_configs');
+CREATE TRIGGER remote_configs_updated_at
+  BEFORE UPDATE ON remote_configs
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 ALTER TABLE remote_configs ENABLE ROW LEVEL SECURITY;
 

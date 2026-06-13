@@ -1,28 +1,21 @@
 import type { Metadata } from "next";
-import { Doto, Space_Grotesk, Space_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 
 import { WalletProviderWrapper } from "@/components/wallet/wallet-provider";
 import "./globals.css";
 
-// Nothing Design System typefaces
-const spaceGrotesk = Space_Grotesk({
+// Canopy typefaces — Inter for UI, JetBrains Mono for data/addresses/hashes
+const inter = Inter({
     subsets: ["latin"],
-    weight: ["300", "400", "500", "700"],
-    variable: "--font-space-grotesk",
+    weight: ["400", "500", "600", "700", "800"],
+    variable: "--font-inter",
     display: "swap",
 });
 
-const spaceMono = Space_Mono({
+const jetbrainsMono = JetBrains_Mono({
     subsets: ["latin"],
-    weight: ["400", "700"],
-    variable: "--font-space-mono",
-    display: "swap",
-});
-
-const doto = Doto({
-    subsets: ["latin"],
-    weight: ["400", "700"],
-    variable: "--font-doto",
+    weight: ["400", "500", "600"],
+    variable: "--font-jbmono",
     display: "swap",
 });
 
@@ -46,7 +39,7 @@ export default function RootLayout({
     return (
         <html
             lang="en"
-            className={`dark ${spaceGrotesk.variable} ${spaceMono.variable} ${doto.variable}`}
+            className={`dark ${inter.variable} ${jetbrainsMono.variable}`}
         >
             <body className="bg-nd-black text-nd-text-primary font-body antialiased min-h-screen">
                 <WalletProviderWrapper>{children}</WalletProviderWrapper>

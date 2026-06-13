@@ -4,6 +4,10 @@
         {
             "path": "/api/v1/cron/expire-cleanup",
             "schedule": "5 * * * *"
+        },
+        {
+            "path": "/api/v1/cron/scan-recheck",
+            "schedule": "*/10 * * * *"
         }
     ]
 }

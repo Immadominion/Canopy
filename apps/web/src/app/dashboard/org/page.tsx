@@ -121,7 +121,7 @@ export default async function OrgPage() {
     const activeMembers = members.filter((m) => !!m.joined_at);
 
     return (
-        <div className="min-h-screen bg-black text-nd-text-primary">
+        <div className="min-h-full bg-black text-nd-text-primary">
             {/* ── dot-grid hero ──────────────────────────────────────────────────── */}
             <div
                 className="relative border-b border-nd-border-subtle px-6 py-12"

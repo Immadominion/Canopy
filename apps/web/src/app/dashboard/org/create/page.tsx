@@ -37,7 +37,7 @@ export default function CreateOrgPage() {
     }
 
     return (
-        <div className="min-h-screen bg-black text-nd-text-primary">
+        <div className="min-h-full bg-black text-nd-text-primary">
             {/* header */}
             <div className="border-b border-nd-border-subtle px-6 py-8">
                 <p className="font-mono text-[10px] tracking-[0.08em] uppercase text-nd-text-secondary mb-2">

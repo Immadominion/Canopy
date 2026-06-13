@@ -29,6 +29,7 @@
     },
     "pnpm": {
         "overrides": {
+            "react-native": "0.76.7",
             "@react-native/virtualized-lists>@types/react": "~18.3.0"
         },
         "packageExtensions": {

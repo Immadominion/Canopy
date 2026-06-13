@@ -5,12 +5,47 @@ import { isValidUuid } from "@canopy/utils";
 
 import { getSessionWallet, requireVerifiedPublisher } from "@/lib/auth/session";
 import { apiError, notFound } from "@/lib/api/errors";
+import { deleteApkFromR2 } from "@/lib/r2/client";
+import { logger } from "@/lib/logger";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
+const log = logger.child({ module: "beta/[trackId]" });
+
+type AdminClient = ReturnType<typeof createSupabaseAdminClient>;
+
 interface RouteParams {
     params: Promise<{ trackId: string }>;
+}
+
+/**
+ * Purge a track's APK binary from R2 and mark it deleted (idempotent).
+ *
+ * Mirrors the expire-cleanup cron: delete the R2 object, then stamp
+ * `apk_deleted_at` so the cron + future calls skip it. Best-effort — a failed
+ * R2 delete leaves a private, unreachable object (a storage cost, not a leak),
+ * so we log and continue rather than block the status change.
+ */
+async function purgeTrackBinary(
+    admin: AdminClient,
+    trackId: string,
+    r2Key: string,
+): Promise<void> {
+    try {
+        await deleteApkFromR2(r2Key);
+        const { error } = await admin
+            .from("beta_tracks")
+            .update({ apk_deleted_at: new Date().toISOString() })
+            .eq("id", trackId);
+        if (error) {
+            log.warn({ trackId, err: error }, "R2 deleted but failed to mark apk_deleted_at");
+        } else {
+            log.info({ trackId }, "APK purged from R2");
+        }
+    } catch (err) {
+        log.warn({ trackId, err }, "Failed to purge APK from R2");
+    }
 }
 
 const patchSchema = z.object({
@@ -125,7 +160,7 @@ export async function PATCH(request: Request, { params }: RouteParams): Promise<
     const admin = createSupabaseAdminClient();
     const { data: track, error } = await admin
         .from("beta_tracks")
-        .select("id, publisher_id, status, expires_at")
+        .select("id, publisher_id, status, expires_at, r2_key, apk_deleted_at")
         .eq("id", trackId)
         .maybeSingle();
 
@@ -175,5 +210,59 @@ export async function PATCH(request: Request, { params }: RouteParams): Promise<
         return apiError("DB_ERROR", "Failed to update track", 500);
     }
 
+    // Revoking is terminal (a revoked track can never be re-activated — only
+    // scan_passed → active is allowed), so the APK is dead weight. Purge it from
+    // R2 immediately instead of waiting for the expiry cron. Best-effort.
+    if (parsed.data.status === "revoked" && !track.apk_deleted_at) {
+        await purgeTrackBinary(admin, trackId, track.r2_key);
+    }
+
     return NextResponse.json({ track: updated });
+}
+
+/**
+ * DELETE /api/v1/beta/[trackId]
+ *
+ * Owner-only. Hard-deletes a beta track (build): purges the APK from R2, then
+ * removes the row — which cascades beta_testers + install_events and NULLs any
+ * releases.beta_track_id that pointed at it. The immutable Arweave fingerprint
+ * record is intentionally left intact as the permanent audit trail.
+ *
+ * Allowed from any status; the dashboard double-confirms. Returns 404 (not 403)
+ * for tracks the caller does not own, to avoid leaking existence (Invariant 5).
+ */
+export async function DELETE(_request: Request, { params }: RouteParams): Promise<NextResponse> {
+    const { trackId } = await params;
+    if (!isValidUuid(trackId)) return notFound();
+
+    const auth = await requireVerifiedPublisher();
+    if (auth.status === "unauthenticated") return notFound();
+    if (auth.status === "not_publisher" || auth.status === "kyc_required") return notFound();
+
+    const admin = createSupabaseAdminClient();
+    const { data: track, error } = await admin
+        .from("beta_tracks")
+        .select("id, publisher_id, r2_key, apk_deleted_at")
+        .eq("id", trackId)
+        .maybeSingle();
+
+    if (error || !track) return notFound();
+    if (track.publisher_id !== auth.publisher.id) return notFound();
+
+    // Purge the binary first so we never orphan a private R2 object after the
+    // row (and its r2_key pointer) is gone. Best-effort — skip if already purged.
+    if (!track.apk_deleted_at) {
+        try {
+            await deleteApkFromR2(track.r2_key);
+        } catch (err) {
+            log.warn({ trackId, err }, "Failed to purge APK from R2 during track delete");
+        }
+    }
+
+    const { error: delError } = await admin.from("beta_tracks").delete().eq("id", trackId);
+    if (delError) {
+        return apiError("DB_ERROR", "Failed to delete track", 500);
+    }
+
+    return new NextResponse(null, { status: 204 });
 }

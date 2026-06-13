@@ -2,6 +2,8 @@ export type { Database } from "./database.types";
 export type {
     BetaTrackStatus,
     Publisher,
+    PublisherVerificationStatus,
+    AccessRequest,
     App,
     BetaTrack,
     BetaTester,

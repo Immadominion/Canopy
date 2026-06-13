@@ -62,3 +62,20 @@ supabase/.temp/
 
 # Generated docs assets (fumadocs-mdx)
 apps/docs/.source/
+
+# TypeScript / Next build artifacts
+*.tsbuildinfo
+next-env.d.ts
+
+# Expo / React Native generated native projects (regenerated via `expo prebuild`)
+.expo/
+apps/tester/android/
+apps/tester/ios/
+apps/example/android/
+apps/example/ios/
+
+# Design source masters (optimized copies live in apps/web/public)
+design-assets/
+
+# Self-hosted Rive runtime — needed at /rive.wasm, exempt from the *.wasm rule above
+!apps/web/public/rive.wasm

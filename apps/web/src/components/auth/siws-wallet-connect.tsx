@@ -31,6 +31,13 @@ function buildSIWSMessage(opts: {
     ].join("\n");
 }
 
+// Shown only when no Wallet Standard wallet is detected — a real path forward
+// instead of a dead end. Order: most common first.
+const WALLET_INSTALL_LINKS = [
+    { name: "PHANTOM", url: "https://phantom.app/download" },
+    { name: "SOLFLARE", url: "https://solflare.com/download" },
+] as const;
+
 // ---------------------------------------------------------------------------
 // Status labels — Nothing Design: inline text, no toast, no spinner.
 // ---------------------------------------------------------------------------
@@ -56,12 +63,23 @@ function statusLabel(status: SignInStatus, errorCode: string): string | null {
 // ---------------------------------------------------------------------------
 export function SIWSWalletConnect() {
     const router = useRouter();
-    const { wallets, select, connect, publicKey, signMessage, connected } = useWallet();
+    const { wallets, select, connect, wallet, publicKey, signMessage, connected } = useWallet();
 
     const [status, setStatus] = useState<SignInStatus>("idle");
     const [errorCode, setErrorCode] = useState("");
     // Guard against double-signing on rapid re-renders.
     const signingInFlight = useRef(false);
+    // Guard against firing connect() more than once per selection.
+    const connectInFlight = useRef(false);
+
+    // Wallet detection is client-only: the server has no `window` and sees zero
+    // installed wallets, while the client sees Phantom/Solflare. Rendering the
+    // wallet list before mount causes a hydration mismatch. Gate on `mounted`
+    // so the server and first client paint render the same neutral state.
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     // Wallet Standard wallets auto-register; Phantom/Solflare may appear twice
     // (once via explicit adapter, once via Wallet Standard). Dedupe by name.
@@ -167,48 +185,86 @@ export function SIWSWalletConnect() {
         void runSIWS();
     }, [connected, publicKey, signMessage, status, router]);
 
-    // Select the wallet and call connect() — user approves in their wallet popup.
-    const handleWalletSelect = useCallback(
-        async (walletName: WalletName<string>) => {
-            if (status !== "idle" && status !== "error") return;
-
-            setStatus("connecting");
-            setErrorCode("");
-            signingInFlight.current = false;
-
-            try {
-                select(walletName);
-                await connect();
-            } catch {
-                // connect() rejects when the user cancels. Reset unless we already
-                // moved past "connecting" (i.e. the useEffect fired first).
+    // Connect once the adapter for the selected wallet has actually resolved.
+    // Calling connect() synchronously after select() throws WalletNotSelectedError:
+    // select() only schedules a state update, so `wallet` is still null on that
+    // tick. Driving connect() from this effect (keyed on the resolved `wallet`)
+    // removes the race — no more first-click error.
+    useEffect(() => {
+        if (status !== "connecting" || !wallet || connected || connectInFlight.current) {
+            return;
+        }
+        if (
+            wallet.readyState !== WalletReadyState.Installed &&
+            wallet.readyState !== WalletReadyState.Loadable
+        ) {
+            return;
+        }
+        connectInFlight.current = true;
+        connect()
+            .catch(() => {
+                // User cancelled, or the wallet rejected the connection.
                 setStatus((prev) => (prev === "connecting" ? "error" : prev));
                 setErrorCode("WALLET_CONNECT_CANCELLED");
                 signingInFlight.current = false;
-            }
+            })
+            .finally(() => {
+                connectInFlight.current = false;
+            });
+    }, [wallet, status, connected, connect]);
+
+    // Selecting a wallet only sets state; the effect above performs the connect
+    // once the adapter is ready. The user then approves in their wallet popup.
+    const handleWalletSelect = useCallback(
+        (walletName: WalletName<string>) => {
+            if (status !== "idle" && status !== "error") return;
+            setStatus("connecting");
+            setErrorCode("");
+            signingInFlight.current = false;
+            select(walletName);
         },
-        [select, connect, status],
+        [select, status],
     );
 
     const label = statusLabel(status, errorCode);
 
     return (
         <div>
-            {availableWallets.length === 0 ? (
+            {!mounted ? (
+                // Stable placeholder — matches server render, avoids hydration mismatch.
+                <div className="py-nd-lg">
+                    <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em]">
+                        [ DETECTING WALLETS... ]
+                    </p>
+                </div>
+            ) : availableWallets.length === 0 ? (
                 <div className="py-nd-lg">
                     <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em]">
                         NO WALLET DETECTED
                     </p>
                     <p className="mt-nd-sm font-body text-nd-body-sm text-nd-text-disabled">
-                        Install Phantom, Solflare, or any Wallet Standard wallet.
+                        Install a Solana wallet to continue.
                     </p>
+                    <div className="mt-nd-md flex items-center justify-center gap-nd-lg">
+                        {WALLET_INSTALL_LINKS.map((wallet) => (
+                            <a
+                                key={wallet.name}
+                                href={wallet.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-mono text-nd-label text-nd-text-secondary hover:text-nd-text-primary uppercase tracking-[0.08em] transition-colors"
+                            >
+                                {wallet.name} →
+                            </a>
+                        ))}
+                    </div>
                 </div>
             ) : (
                 <div className="space-y-nd-sm">
                     {availableWallets.map((w) => (
                         <button
                             key={w.adapter.name}
-                            onClick={() => void handleWalletSelect(w.adapter.name as WalletName<string>)}
+                            onClick={() => handleWalletSelect(w.adapter.name as WalletName<string>)}
                             disabled={status !== "idle" && status !== "error"}
                             className="w-full flex items-center justify-between px-nd-md py-nd-md border border-nd-border-visible hover:border-nd-text-disabled transition-colors disabled:opacity-40 disabled:cursor-not-allowed group"
                         >

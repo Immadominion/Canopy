@@ -3,7 +3,11 @@ import { z } from "zod";
 
 import { apiError, notFound } from "@/lib/api/errors";
 import { requireVerifiedPublisher } from "@/lib/auth/session";
+import { deleteApkFromR2 } from "@/lib/r2/client";
+import { logger } from "@/lib/logger";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+
+const log = logger.child({ module: "apps/[appId]" });
 
 const updateAppSchema = z
     .object({
@@ -137,12 +141,18 @@ export async function PATCH(request: Request, ctx: RouteContext): Promise<NextRe
 /**
  * DELETE /api/v1/apps/[appId] — delete an app the publisher owns.
  *
- * The DB has `ON DELETE RESTRICT` on `beta_tracks.app_id`, so apps with any
- * existing beta tracks cannot be deleted. This is intentional: tracks may have
- * outstanding testers, install events, and Arweave records that must not be
- * orphaned by a cascading delete.
+ * Two modes:
+ *  - Default (safe): `beta_tracks.app_id` is `ON DELETE RESTRICT`, so an app
+ *    with any beta tracks returns 409 `APP_HAS_TRACKS`. This guards against an
+ *    accidental cascade orphaning testers / install events.
+ *  - `?cascade=true` (deliberate): runs `delete_app_cascade()`, which atomically
+ *    deletes the app's tracks (cascading testers + install_events, NULLing
+ *    releases.beta_track_id) and the app (cascading releases, remote_configs,
+ *    analytics, experiments, cohorts), and returns the R2 keys of every build
+ *    binary so we can purge them from storage afterwards. Immutable Arweave
+ *    fingerprint records are preserved by design.
  */
-export async function DELETE(_request: Request, ctx: RouteContext): Promise<NextResponse> {
+export async function DELETE(request: Request, ctx: RouteContext): Promise<NextResponse> {
     const auth = await requireVerifiedPublisher();
     switch (auth.status) {
         case "unauthenticated":
@@ -156,6 +166,8 @@ export async function DELETE(_request: Request, ctx: RouteContext): Promise<Next
     const { appId } = await ctx.params;
     if (!uuidSchema.safeParse(appId).success) return notFound();
 
+    const cascade = new URL(request.url).searchParams.get("cascade") === "true";
+
     const admin = createSupabaseAdminClient();
 
     const { data: existing } = await admin
@@ -166,13 +178,37 @@ export async function DELETE(_request: Request, ctx: RouteContext): Promise<Next
 
     if (!existing || existing.publisher_id !== auth.publisher.id) return notFound();
 
+    if (cascade) {
+        // Atomic multi-table delete; returns the R2 keys to purge.
+        const { data: keys, error: rpcError } = await admin.rpc("delete_app_cascade", {
+            p_app_id: appId,
+        });
+        if (rpcError) {
+            log.error({ appId, err: rpcError }, "delete_app_cascade failed");
+            return apiError("DB_ERROR", "Failed to delete app", 500);
+        }
+
+        // Purge each build binary from R2 (best-effort — the DB rows are already
+        // gone, so a failed delete only strands a private, unreachable object).
+        for (const row of keys ?? []) {
+            if (!row.r2_key) continue;
+            try {
+                await deleteApkFromR2(row.r2_key);
+            } catch (err) {
+                log.warn({ appId, r2Key: row.r2_key, err }, "Failed to purge build binary on app delete");
+            }
+        }
+
+        return new NextResponse(null, { status: 204 });
+    }
+
     const { error } = await admin.from("apps").delete().eq("id", appId);
     if (error) {
         // Postgres foreign-key violation: beta tracks still reference this app
         if (error.code === "23503") {
             return apiError(
                 "APP_HAS_TRACKS",
-                "Cannot delete app while beta tracks reference it",
+                "Cannot delete app while beta tracks reference it. Retry with ?cascade=true to remove all builds.",
                 409,
             );
         }

@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { headers } from "next/headers";
 
 import type { Publisher } from "@canopy/types";
 
@@ -14,22 +15,51 @@ interface SessionWallet {
     walletHash: string;
 }
 
+/** Pull `wallet_address` out of a Supabase user's metadata, if present + valid. */
+function walletFromMetadata(metadata: unknown): string | null {
+    const walletAddress = (metadata as { wallet_address?: unknown })?.["wallet_address"];
+    return typeof walletAddress === "string" && walletAddress.length > 0 ? walletAddress : null;
+}
+
 /**
- * Resolves the wallet associated with the current Supabase session, or null
- * if the request is unauthenticated. Memoised per-request via React `cache`.
+ * Resolves the wallet associated with the current request, or null if
+ * unauthenticated. Memoised per-request via React `cache`.
+ *
+ * Two credentials are accepted:
+ *  1. The httpOnly Supabase cookie session (web app).
+ *  2. An `Authorization: Bearer <access_token>` header (the native Canopy
+ *     tester app, which can't use cookies). The token is verified with the
+ *     admin client; same wallet-from-metadata claim.
  */
 export const getSessionWallet = cache(async (): Promise<SessionWallet | null> => {
+    // 1. Cookie session (web).
     const supabase = await createSupabaseServerClient();
     const {
         data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) return null;
+    const cookieWallet = user ? walletFromMetadata(user.user_metadata) : null;
+    if (cookieWallet) {
+        return { walletAddress: cookieWallet, walletHash: hashWalletAddress(cookieWallet) };
+    }
 
-    const walletAddress = (user.user_metadata as { wallet_address?: unknown })["wallet_address"];
-    if (typeof walletAddress !== "string" || walletAddress.length === 0) return null;
+    // 2. Bearer token (native app).
+    const authHeader = (await headers()).get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+        const token = authHeader.slice("Bearer ".length).trim();
+        if (token) {
+            const admin = createSupabaseAdminClient();
+            const {
+                data: { user: bearerUser },
+            } = await admin.auth.getUser(token);
+            const bearerWallet = bearerUser ? walletFromMetadata(bearerUser.user_metadata) : null;
+            if (bearerWallet) {
+                return { walletAddress: bearerWallet, walletHash: hashWalletAddress(bearerWallet) };
+            }
+        }
+    }
 
-    return { walletAddress, walletHash: hashWalletAddress(walletAddress) };
+    return null;
 });
 
 /**

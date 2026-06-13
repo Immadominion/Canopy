@@ -50,11 +50,37 @@ const serverEnvSchema = z.object({
     RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
     RESEND_FROM_EMAIL: z.string().email().default("Canopy <no-reply@mail.canopy.build>"),
 
-    // Stripe — subscription billing
-    STRIPE_SECRET_KEY: z.string().min(1, "STRIPE_SECRET_KEY is required"),
-    STRIPE_WEBHOOK_SECRET: z.string().min(1, "STRIPE_WEBHOOK_SECRET is required"),
-    STRIPE_PRO_PRICE_ID: z.string().min(1, "STRIPE_PRO_PRICE_ID is required"),
-    STRIPE_ENTERPRISE_PRICE_ID: z.string().min(1, "STRIPE_ENTERPRISE_PRICE_ID is required"),
+    // (Stripe removed — billing is on-chain USDC; see the billing block below.)
+
+    // ─── Publisher verification (Phase 1: manual approval over Telegram) ───
+    // All optional — the feature degrades gracefully when unset:
+    //  - Without the bot vars, no Telegram notification fires (the user can still
+    //    reach out via the prefilled t.me link), and approvals go through the
+    //    admin-wallet API fallback.
+    //  - Without ADMIN_WALLET_HASHES, the admin API is closed (Telegram-only).
+    TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
+    TELEGRAM_ADMIN_CHAT_ID: z.string().min(1).optional(), // your numeric Telegram user/chat id
+    TELEGRAM_WEBHOOK_SECRET: z.string().min(16).optional(), // X-Telegram-Bot-Api-Secret-Token
+    // Comma-separated SHA-256 wallet hashes allowed to approve via the admin API.
+    ADMIN_WALLET_HASHES: z.string().optional(),
+    // Founder Telegram username (no @) the request panel deep-links to.
+    NEXT_PUBLIC_FOUNDER_TELEGRAM: z.string().default("ImmaDotDev"),
+
+    // ─── On-chain USDC billing (pay-to-extend) ───
+    // All optional — billing is simply disabled (no upgrade UI, no crashes) when
+    // the merchant wallet is unset/invalid. SOLANA_RPC_URL above is reused for
+    // verification. USDC_MINT defaults to mainnet USDC.
+    CANOPY_MERCHANT_WALLET: z.string().optional(), // base58 pubkey that receives USDC
+    USDC_MINT: z.string().default("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"),
+    SOLANA_CLUSTER: z.enum(["mainnet-beta", "devnet"]).default("mainnet-beta"),
+
+    // ─── Herald — privacy-preserving developer notifications ───
+    // Optional. When set, Canopy can notify a developer by WALLET address (e.g.
+    // build scan complete); Herald resolves the wallet to the dev's own
+    // encrypted contact and delivers it — Canopy stores no email/PII. Use a
+    // hrld_test_... key for sandbox, hrld_live_... for production.
+    HERALD_API_KEY: z.string().min(1).optional(),
+    HERALD_BASE_URL: z.string().url().default("https://api.useherald.xyz"),
 });
 
 /**

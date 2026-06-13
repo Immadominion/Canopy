@@ -1,0 +1,31 @@
+{
+    "expo": {
+        "name": "Canopy",
+        "slug": "canopy-tester",
+        "version": "0.1.0",
+        "scheme": "canopy",
+        "icon": "./assets/logo.png",
+        "userInterfaceStyle": "dark",
+        "splash": {
+            "image": "./assets/logo.png",
+            "resizeMode": "contain",
+            "backgroundColor": "#0E0E10"
+        },
+        "platforms": [
+            "android"
+        ],
+        "android": {
+            "package": "app.canopy.tester",
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/logo.png",
+                "backgroundColor": "#0E0E10"
+            },
+            "permissions": [
+                "android.permission.REQUEST_INSTALL_PACKAGES"
+            ]
+        },
+        "plugins": [
+            "./node_modules/expo-router/app.plugin.js"
+        ]
+    }
+}

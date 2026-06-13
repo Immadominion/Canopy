@@ -1,12 +1,13 @@
 import crypto from "crypto";
 
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { z } from "zod";
 
 import { generateTrackExpiry, isValidApkSha256 } from "@canopy/utils";
 
 import { requireVerifiedPublisher } from "@/lib/auth/session";
 import { apiError } from "@/lib/api/errors";
+import { parseApkManifest } from "@/lib/apk/manifest";
 import { writeTrackCreatedRecord } from "@/lib/arweave/irys";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -23,8 +24,10 @@ const MAX_APK_BYTES = 200 * 1024 * 1024; // 200 MB hard cap
 
 const metadataSchema = z.object({
     appId: z.string().uuid(),
-    versionName: z.string().min(1).max(64),
-    versionCode: z.coerce.number().int().positive(),
+    // Optional: auto-detected from the APK manifest when omitted. The dev only
+    // supplies these to override, or when the APK can't be read.
+    versionName: z.string().min(1).max(64).optional(),
+    versionCode: z.coerce.number().int().positive().optional(),
     expiresInDays: z.coerce.number().int().positive().max(30).default(30),
     releaseNotes: z.string().max(2000).optional(),
 });
@@ -87,8 +90,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const metaParsed = metadataSchema.safeParse({
         appId: form.get("appId"),
-        versionName: form.get("versionName"),
-        versionCode: form.get("versionCode"),
+        // Treat blank/absent version fields as "auto-detect" (undefined).
+        versionName: form.get("versionName") || undefined,
+        versionCode: form.get("versionCode") || undefined,
         expiresInDays: form.get("expiresInDays") ?? undefined,
         releaseNotes: form.get("releaseNotes") ?? undefined,
     });
@@ -126,6 +130,29 @@ export async function POST(request: Request): Promise<NextResponse> {
         apkBuffer[3] !== 0x04
     ) {
         return apiError("INVALID_APK", "File does not appear to be a valid APK (ZIP format expected)", 400);
+    }
+
+    // ── Resolve version from the APK manifest (auto-detect) ─────────────────────
+    // Read versionName/versionCode straight from the APK. The dev's submitted
+    // values (if any) win — they're an explicit override; otherwise we use what
+    // the APK declares. Only when neither source has a value do we ask them to
+    // enter it manually.
+    const detected = parseApkManifest(apkBuffer);
+    const versionName = meta.versionName ?? detected?.versionName ?? null;
+    const versionCode = meta.versionCode ?? detected?.versionCode ?? null;
+    if (!versionName || versionCode === null) {
+        return apiError(
+            "VERSION_UNDETECTED",
+            "Couldn't read the version from this APK — enter versionName and versionCode manually.",
+            400,
+            {
+                detected: {
+                    versionName: detected?.versionName ?? null,
+                    versionCode: detected?.versionCode ?? null,
+                    packageName: detected?.packageName ?? null,
+                },
+            },
+        );
     }
 
     const apkSha256 = crypto.createHash("sha256").update(apkBuffer).digest("hex");
@@ -184,8 +211,8 @@ export async function POST(request: Request): Promise<NextResponse> {
             id: trackId,
             app_id: meta.appId,
             publisher_id: publisher.id,
-            version_name: meta.versionName,
-            version_code: meta.versionCode,
+            version_name: versionName,
+            version_code: versionCode,
             r2_key: r2Key,
             apk_sha256: apkSha256,
             apk_size_bytes: apkEntry.size,
@@ -206,13 +233,19 @@ export async function POST(request: Request): Promise<NextResponse> {
         "Beta track created",
     );
 
-    // Fire-and-forget malware scan — must not block the response (§5)
-    // The scan endpoint will transition the track through scan_in_progress → scan_passed | scan_failed.
+    // Trigger the malware scan after the response is sent. `after()` guarantees
+    // the dispatch actually runs — an un-awaited `void fetch()` in a route handler
+    // is NOT guaranteed to fire once the response returns (the request scope is
+    // torn down), which left tracks stuck at `pending_scan`. The scan endpoint
+    // fast-ACKs (transition → scan_in_progress) and does the slow VirusTotal work
+    // in its own `after()`, so this await resolves quickly.
     const appUrl = env.NEXT_PUBLIC_APP_URL;
-    void fetch(`${appUrl}/api/v1/beta/${track.id}/scan`, {
-        method: "POST",
-    }).catch((err: unknown) => {
-        log.error({ err, trackId: track.id }, "Failed to trigger malware scan");
+    after(async () => {
+        try {
+            await fetch(`${appUrl}/api/v1/beta/${track.id}/scan`, { method: "POST" });
+        } catch (err: unknown) {
+            log.error({ err, trackId: track.id }, "Failed to trigger malware scan");
+        }
     });
 
     // Fire-and-forget Arweave fingerprint — must not block the response (§11)

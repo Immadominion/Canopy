@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { getSessionWallet } from "@/lib/auth/session";
 import { SIWSInstallFlow } from "@/components/install/siws-install-flow";
+import { OpenInCanopy } from "@/components/install/open-in-canopy";
 
 export const metadata: Metadata = {
     title: "Install Beta Build",
@@ -51,15 +52,30 @@ export default async function InstallPage({ params }: PageProps) {
                     </p>
                 </div>
 
-                {/* ── Layer 2: Auth + download flow ── */}
+                {/* ── Layer 2a: Primary path — the trusted Canopy app ── */}
                 <div className="mb-nd-2xl">
-                    {!isAuthenticated && (
-                        <p className="font-body text-nd-body-sm text-nd-text-secondary mb-nd-xl">
-                            Connect your Solana wallet to verify your tester access.
-                        </p>
-                    )}
-                    <SIWSInstallFlow trackId={trackId} isAuthenticated={isAuthenticated} />
+                    <OpenInCanopy trackId={trackId} />
                 </div>
+
+                {/* ── Layer 2b: Advanced — direct, wallet-bound web download ── */}
+                <details className="mb-nd-2xl group">
+                    <summary className="cursor-pointer list-none font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] hover:text-nd-text-secondary transition-colors">
+                        ADVANCED: DIRECT APK DOWNLOAD ▾
+                    </summary>
+                    <div className="mt-nd-lg border-l border-nd-border pl-nd-lg">
+                        <p className="font-mono text-nd-caption text-nd-accent uppercase tracking-[0.06em] mb-nd-md leading-relaxed">
+                            ONLY INSTALL APKS YOU TRUST. THE DOWNLOADED FILE IS NAMED BY ITS
+                            SHA-256 — VERIFY IT MATCHES THE BUILD&apos;S FINGERPRINT BEFORE
+                            INSTALLING. PREFER THE CANOPY APP ABOVE, WHICH VERIFIES AUTOMATICALLY.
+                        </p>
+                        {!isAuthenticated && (
+                            <p className="font-body text-nd-body-sm text-nd-text-secondary mb-nd-xl">
+                                Connect your Solana wallet to verify your tester access.
+                            </p>
+                        )}
+                        <SIWSInstallFlow trackId={trackId} isAuthenticated={isAuthenticated} />
+                    </div>
+                </details>
 
                 {/* ── Layer 3: Security notices ── */}
                 <div className="border-t border-nd-border pt-nd-xl">

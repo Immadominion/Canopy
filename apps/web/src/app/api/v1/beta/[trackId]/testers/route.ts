@@ -102,14 +102,16 @@ export async function POST(request: Request, { params }: RouteParams): Promise<N
         }
 
         const { data: incResult, error: incError } = await admin.rpc("increment_tester_count", {
-            track_id: trackId,
+            p_track_id: trackId,
         });
 
-        if (incError || !incResult) {
+        // The function RETURNS TABLE(...), so PostgREST returns an array of rows.
+        const incRow = incResult?.[0];
+        if (incError || !incRow) {
             return apiError("DB_ERROR", "Failed to reserve tester slot", 500);
         }
 
-        if (incResult.over_cap) {
+        if (incRow.over_cap) {
             // INVARIANT 2: cap hit. Stop here and return 409 with whatever we managed to add.
             return NextResponse.json(
                 {

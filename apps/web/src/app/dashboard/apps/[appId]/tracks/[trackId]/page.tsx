@@ -6,7 +6,9 @@ import { getCurrentPublisher } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { AddTestersForm } from "@/components/beta/add-testers-form";
 import { TrackStatusControls } from "@/components/beta/track-status-controls";
+import { TrackDangerControls } from "@/components/beta/track-danger-controls";
 import { TrackExpiryCountdown } from "@/components/beta/track-expiry-countdown";
+import { TrackStatusPoller } from "@/components/beta/track-status-poller";
 
 export const metadata: Metadata = {
     title: "Track Detail",
@@ -81,7 +83,7 @@ export default async function TrackDetailPage({ params }: PageProps) {
     const { data: track, error: trackError } = await admin
         .from("beta_tracks")
         .select(
-            "id, version_name, version_code, status, tester_count, tester_cap, apk_sha256, apk_size_bytes, release_notes, arweave_tx_id, expires_at, created_at",
+            "id, version_name, version_code, status, tester_count, tester_cap, apk_sha256, apk_size_bytes, release_notes, arweave_tx_id, apk_deleted_at, expires_at, created_at",
         )
         .eq("id", trackId)
         .eq("app_id", app.id)
@@ -101,7 +103,9 @@ export default async function TrackDetailPage({ params }: PageProps) {
     const { label: statusLabel, className: statusClassName } = trackStatusStyle(track.status);
 
     return (
-        <div className="max-w-3xl">
+        <div className="max-w-3xl mx-auto">
+            {/* Auto-refresh while the build is scanning so the status updates live. */}
+            <TrackStatusPoller status={track.status} />
             {/* ── Breadcrumb ── */}
             <div className="flex items-center gap-nd-sm mb-nd-xl flex-wrap">
                 <Link
@@ -142,6 +146,11 @@ export default async function TrackDetailPage({ params }: PageProps) {
                         <p className={`font-mono text-nd-label uppercase tracking-[0.08em] ${statusClassName}`}>
                             {statusLabel}
                         </p>
+                        {track.apk_deleted_at && (
+                            <p className="font-mono text-nd-caption text-nd-text-disabled uppercase tracking-[0.06em] mt-nd-2xs">
+                                BINARY PURGED
+                            </p>
+                        )}
                     </div>
                 </div>
 
@@ -284,6 +293,15 @@ export default async function TrackDetailPage({ params }: PageProps) {
                         </p>
                     </div>
                 </div>
+            </div>
+
+            {/* ── Danger zone — quiet, at the very bottom (deleting is deliberate) ── */}
+            <div className="mt-nd-2xl pt-nd-lg border-t border-nd-border">
+                <p className="text-nd-caption text-nd-text-disabled mb-nd-sm max-w-md">
+                    Deleting a build purges its APK and removes tester access. The immutable Arweave
+                    fingerprint record remains. This can&apos;t be undone.
+                </p>
+                <TrackDangerControls appId={app.id} trackId={track.id} />
             </div>
         </div>
     );

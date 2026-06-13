@@ -20,8 +20,12 @@
     "@canopy/utils": "workspace:*",
     "@irys/upload": "^0.0.15",
     "@irys/upload-solana": "^0.1.8",
+    "@phosphor-icons/react": "^2.1.10",
+    "@rive-app/react-canvas": "^4.29.1",
     "@sentry/nextjs": "^10.53.1",
+    "@solana-mobile/wallet-adapter-mobile": "^2.2.8",
     "@solana/kit": "^6.9.0",
+    "@solana/spl-token": "^0.4.14",
     "@solana/wallet-adapter-base": "^0.9.27",
     "@solana/wallet-adapter-react": "^0.15.39",
     "@solana/wallet-adapter-wallets": "^0.19.38",
@@ -38,6 +42,7 @@
     "zod": "^3.24.4"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.0",
     "@types/node": "^24.0.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",

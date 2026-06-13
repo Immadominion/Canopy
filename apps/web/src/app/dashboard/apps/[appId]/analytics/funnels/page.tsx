@@ -50,7 +50,7 @@ export default async function FunnelsPage({ params }: Props) {
     const allFunnels = (funnels ?? []) as FunnelDefinition[];
 
     return (
-        <div className="min-h-screen bg-black text-white p-8 space-y-10">
+        <div className="min-h-full bg-black text-white p-8 space-y-10">
             {/* ── Layer 1: Hero ─────────────────────────────────────────────── */}
             <header className="relative overflow-hidden border border-white/10 p-8">
                 {/* Dot-grid pattern — one per screen */}

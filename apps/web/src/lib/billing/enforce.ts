@@ -28,7 +28,7 @@ export interface PlanLimits {
 
 export const PLAN_LIMITS: Record<"free" | "pro" | "enterprise", PlanLimits> = {
     free: {
-        eventsPerMonth: 500_000,
+        eventsPerMonth: 1_000_000,
         maxMembers: 1,
         maxApiKeys: 3,
         crashReportsPerMonth: 1_000,

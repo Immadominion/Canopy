@@ -101,8 +101,18 @@ export async function POST(request: Request): Promise<NextResponse> {
         );
     }
 
-    // 4. Resolve publisher row by wallet hash (testers may have no publisher row).
+    // 4. Resolve publisher row by wallet hash, creating it on first sign-in so
+    //    the wallet is trackable for the access-request flow. New publishers
+    //    start `unverified` (kyc_verified=false) and gain access only after
+    //    manual approval — see lib/verification/access.ts.
     const walletHash = hashWalletAddress(wallet);
+
+    await admin
+        .from("publishers")
+        .upsert(
+            { wallet_address: wallet, wallet_hash: walletHash },
+            { onConflict: "wallet_hash", ignoreDuplicates: true },
+        );
 
     const { data: publisher } = await admin
         .from("publishers")
@@ -162,10 +172,31 @@ export async function POST(request: Request): Promise<NextResponse> {
         "SIWS verification succeeded",
     );
 
+    // Native clients (the Canopy tester app) can't use the httpOnly cookie
+    // session, so when `?client=mobile` is set we also return the Supabase
+    // session tokens in the body for the app to persist in secure storage. The
+    // web app ignores this and relies on the cookies written by verifyOtp above.
+    const wantsMobileToken = new URL(request.url).searchParams.get("client") === "mobile";
+    let mobileSession:
+        | { accessToken: string; refreshToken: string; expiresAt: number | null }
+        | null = null;
+    if (wantsMobileToken) {
+        const { data: sessionData } = await server.auth.getSession();
+        const s = sessionData.session;
+        if (s) {
+            mobileSession = {
+                accessToken: s.access_token,
+                refreshToken: s.refresh_token,
+                expiresAt: s.expires_at ?? null,
+            };
+        }
+    }
+
     return NextResponse.json({
         authenticated: true,
         publisher: publisher
             ? { id: publisher.id, kycVerified: publisher.kyc_verified, plan: publisher.plan }
             : null,
+        ...(mobileSession ? { session: mobileSession } : {}),
     });
 }

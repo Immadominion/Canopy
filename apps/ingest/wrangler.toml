@@ -6,38 +6,68 @@ compatibility_flags = ["nodejs_compat"]
 # Use Workers Unbound for higher CPU limits on event processing
 # usage_model = "unbound"
 
-[env.local]
-name = "canopy-ingest-local"
-
-[env.production]
-name = "canopy-ingest"
-routes = [{ pattern = "ingest.canopy.dev/*", custom_domain = true }]
-
-# KV namespaces
-[[kv_namespaces]]
-binding = "API_KEYS_KV"
-id = "REPLACE_WITH_KV_ID"
-preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
-
-[[kv_namespaces]]
-binding = "EVENT_DEDUP_KV"
-id = "REPLACE_WITH_DEDUP_KV_ID"
-preview_id = "REPLACE_WITH_DEDUP_KV_PREVIEW_ID"
-
-# Durable Objects for rate limiting
-[[durable_objects.bindings]]
-name = "RATE_LIMITER"
-class_name = "RateLimiter"
-
+# ─────────────────────────────────────────────────────────────────────────────
+# Durable Object migrations (shared across environments).
+# ─────────────────────────────────────────────────────────────────────────────
 [[migrations]]
 tag = "v1"
 new_classes = ["RateLimiter"]
 
-# Hyperdrive for Supabase PostgreSQL connection pooling
-[[hyperdrive]]
+# ─────────────────────────────────────────────────────────────────────────────
+# LOCAL DEV  →  `wrangler dev --env local`
+# Named environments do NOT inherit top-level bindings, so they are declared
+# explicitly here. KV namespaces and the Durable Object are simulated locally by
+# Miniflare (the `id`s are placeholders for local). Hyperdrive points at the
+# local Supabase Postgres via localConnectionString.
+# ─────────────────────────────────────────────────────────────────────────────
+[env.local]
+name = "canopy-ingest-local"
+
+[env.local.vars]
+ENVIRONMENT = "local"
+
+[[env.local.kv_namespaces]]
+binding = "API_KEYS_KV"
+id = "local-api-keys-kv"
+
+[[env.local.kv_namespaces]]
+binding = "EVENT_DEDUP_KV"
+id = "local-event-dedup-kv"
+
+[[env.local.durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
+[[env.local.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "local-hyperdrive"
+localConnectionString = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PRODUCTION  →  `wrangler deploy --env production`
+# Replace the REPLACE_WITH_* ids with real resource ids before deploying.
+# ─────────────────────────────────────────────────────────────────────────────
+[env.production]
+name = "canopy-ingest"
+routes = [{ pattern = "ingest.canopy.dev/*", custom_domain = true }]
+
+[env.production.vars]
+ENVIRONMENT = "production"
+
+[[env.production.kv_namespaces]]
+binding = "API_KEYS_KV"
+id = "REPLACE_WITH_KV_ID"
+preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
+
+[[env.production.kv_namespaces]]
+binding = "EVENT_DEDUP_KV"
+id = "REPLACE_WITH_DEDUP_KV_ID"
+preview_id = "REPLACE_WITH_DEDUP_KV_PREVIEW_ID"
+
+[[env.production.durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
+[[env.production.hyperdrive]]
 binding = "HYPERDRIVE"
 id = "REPLACE_WITH_HYPERDRIVE_ID"
-
-# Environment variables (set via wrangler secret for sensitive values)
-[vars]
-ENVIRONMENT = "production"

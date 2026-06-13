@@ -40,7 +40,9 @@ CREATE TABLE experiments (
 CREATE INDEX experiments_app_id_idx ON experiments (app_id);
 CREATE INDEX experiments_status_idx ON experiments (status);
 
-SELECT trigger_set_updated_at('experiments');
+CREATE TRIGGER experiments_updated_at
+  BEFORE UPDATE ON experiments
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 ALTER TABLE experiments ENABLE ROW LEVEL SECURITY;
 
@@ -166,7 +168,9 @@ CREATE TABLE cohort_definitions (
 CREATE INDEX cohort_definitions_publisher_id_idx ON cohort_definitions (publisher_id);
 CREATE INDEX cohort_definitions_app_id_idx       ON cohort_definitions (app_id);
 
-SELECT trigger_set_updated_at('cohort_definitions');
+CREATE TRIGGER cohort_definitions_updated_at
+  BEFORE UPDATE ON cohort_definitions
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 ALTER TABLE cohort_definitions ENABLE ROW LEVEL SECURITY;
 

@@ -81,7 +81,7 @@ export default async function ApiKeysPage(): Promise<React.ReactElement> {
     const minPlan = requiredPlan("maxApiKeys");
 
     return (
-        <main className="min-h-screen bg-[#000000] text-[var(--text-primary)]">
+        <main className="min-h-full bg-[#000000] text-[var(--text-primary)]">
             {/* ── Hero ─────────────────────────────────────────────────────────── */}
             <section className="relative overflow-hidden border-b border-[var(--border)] px-6 py-12">
                 {/* Dot-grid — ONE per page */}

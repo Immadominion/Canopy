@@ -50,7 +50,7 @@ function AcceptInviteInner() {
     }, [token, router]);
 
     return (
-        <div className="min-h-screen bg-black flex items-center justify-center px-6">
+        <div className="min-h-full bg-black flex items-center justify-center px-6">
             <div className="max-w-sm w-full space-y-6">
                 <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-nd-text-secondary">
                     Canopy

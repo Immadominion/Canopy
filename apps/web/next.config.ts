@@ -40,16 +40,21 @@ export default withSentryConfig(nextConfig, {
     // Suppress source-map upload in environments without a SENTRY_AUTH_TOKEN.
     // Upload is enabled in CI via the SENTRY_AUTH_TOKEN env var.
     silent: !process.env['SENTRY_AUTH_TOKEN'],
-    disableLogger: true,
-
-    // Do not automatically instrument server components — we use manual spans
-    // in the routes that need it.
-    autoInstrumentServerFunctions: false,
-    autoInstrumentAppDirectory: true,
-    autoInstrumentMiddleware: true,
 
     // Suppress source map upload when auth token is absent (local dev)
     sourcemaps: {
         disable: !process.env['SENTRY_AUTH_TOKEN'],
+    },
+
+    // Webpack-build instrumentation options. These moved under `webpack` in
+    // newer @sentry/nextjs (the top-level forms were deprecated and warned on
+    // every dev boot). They are no-ops under Turbopack, which we use in dev.
+    webpack: {
+        autoInstrumentServerFunctions: false,
+        autoInstrumentAppDirectory: true,
+        autoInstrumentMiddleware: true,
+        treeshake: {
+            removeDebugLogging: true,
+        },
     },
 });

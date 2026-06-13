@@ -5,6 +5,9 @@ import type { StripeSubscriptionStatus } from "@canopy/types";
 
 import { getCurrentPublisher } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { SubscribeWithUsdc } from "@/components/billing/subscribe-with-usdc";
+import { getBillingConfig } from "@/lib/billing/provider";
+import { priceUsd } from "@/lib/billing/plans";
 
 export const metadata: Metadata = {
     title: "Billing",
@@ -60,14 +63,35 @@ export default async function BillingPage() {
         .eq("owner_id", publisher.id)
         .maybeSingle();
 
-    if (!org) notFound();
+    // No organization yet → don't 404; guide the user to create one. Billing is
+    // org-scoped (plans/subscriptions attach to an organization).
+    if (!org) {
+        return (
+            <div className="max-w-3xl mx-auto">
+                <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] mb-nd-lg">
+                    BILLING
+                </p>
+                <p className="font-body text-nd-body text-nd-text-secondary mb-nd-xl max-w-xl">
+                    You&apos;re on the <span className="text-nd-text-primary">Free</span> plan.
+                    Billing is managed per organization — create one to add teammates and unlock
+                    paid plans.
+                </p>
+                <a
+                    href="/dashboard/org/create"
+                    className="inline-block font-mono text-nd-label text-nd-black bg-nd-text-display uppercase tracking-[0.08em] px-nd-lg py-nd-sm rounded-md"
+                >
+                    CREATE ORGANIZATION →
+                </a>
+            </div>
+        );
+    }
 
     const billing = org as OrgBilling;
     const isActive = billing.subscription_status === "active" || billing.subscription_status === "trialing";
-    const hasBilling = !!billing.stripe_customer_id;
+    const cfg = getBillingConfig();
 
     return (
-        <div className="min-h-screen bg-black text-nd-text-primary">
+        <div className="min-h-full bg-black text-nd-text-primary">
             {/* ── dot-grid hero ──────────────────────────────────────────────────── */}
             <div
                 className="relative border-b border-nd-border-subtle px-6 py-12"
@@ -122,35 +146,68 @@ export default async function BillingPage() {
                     </div>
                 </section>
 
-                {/* ── manage / upgrade ────────────────────────────────────────────── */}
+                {/* ── upgrade / extend — on-chain USDC ────────────────────────────── */}
                 <section className="space-y-3">
-                    {hasBilling && (
-                        <form action="/api/v1/billing/portal-session" method="POST">
-                            <button
-                                type="submit"
-                                className="font-mono text-[10px] uppercase tracking-[0.08em] border border-nd-border-visible px-4 py-2 text-nd-text-secondary hover:border-nd-text-secondary transition-colors"
-                            >
-                                Manage billing &amp; invoices →
-                            </button>
-                        </form>
-                    )}
-
-                    {billing.plan === "free" && (
-                        <div className="border border-nd-border-subtle p-4 space-y-3">
+                    {!cfg ? (
+                        <p className="font-mono text-xs text-nd-text-secondary">
+                            On-chain billing isn&apos;t configured yet. Set CANOPY_MERCHANT_WALLET to
+                            enable USDC subscriptions.
+                        </p>
+                    ) : billing.plan === "free" ? (
+                        <div className="border border-nd-border-subtle p-4 space-y-5 rounded-lg">
                             <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-nd-text-secondary">
-                                Upgrade to Pro
+                                Upgrade — pay in USDC on Solana
                             </p>
-                            <p className="font-grotesk text-sm text-nd-text-secondary">
-                                Unlimited events, up to 5 team members, advanced analytics.
+
+                            <div className="space-y-2">
+                                <p className="font-grotesk text-sm text-nd-text-primary">
+                                    Pro — ${priceUsd("pro", "monthly")} / mo
+                                </p>
+                                <p className="font-grotesk text-xs text-nd-text-secondary">
+                                    10M events, 5 team members, funnels &amp; retention, remote config.
+                                </p>
+                                <SubscribeWithUsdc
+                                    plan="pro"
+                                    interval="monthly"
+                                    priceUsd={priceUsd("pro", "monthly")}
+                                    merchantWallet={cfg.merchantWallet.toBase58()}
+                                    usdcMint={cfg.usdcMint.toBase58()}
+                                    rpcUrl={cfg.rpcUrl}
+                                />
+                            </div>
+
+                            <div className="space-y-2 pt-4 border-t border-nd-border-subtle">
+                                <p className="font-grotesk text-sm text-nd-text-primary">
+                                    Enterprise — ${priceUsd("enterprise", "monthly")} / mo
+                                </p>
+                                <SubscribeWithUsdc
+                                    plan="enterprise"
+                                    interval="monthly"
+                                    priceUsd={priceUsd("enterprise", "monthly")}
+                                    merchantWallet={cfg.merchantWallet.toBase58()}
+                                    usdcMint={cfg.usdcMint.toBase58()}
+                                    rpcUrl={cfg.rpcUrl}
+                                />
+                            </div>
+
+                            <p className="font-mono text-[10px] text-nd-text-tertiary">
+                                A one-time USDC payment extends your plan 30 days. No auto-renew —
+                                pay again to extend.
                             </p>
-                            <form action="/api/v1/billing/portal-session" method="POST">
-                                <button
-                                    type="submit"
-                                    className="font-mono text-[10px] uppercase tracking-[0.08em] bg-nd-accent text-white px-4 py-2"
-                                >
-                                    Upgrade →
-                                </button>
-                            </form>
+                        </div>
+                    ) : (
+                        <div className="border border-nd-border-subtle p-4 space-y-3 rounded-lg">
+                            <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-nd-text-secondary">
+                                Extend your {PLAN_LABELS[billing.plan]} plan — USDC
+                            </p>
+                            <SubscribeWithUsdc
+                                plan={billing.plan}
+                                interval="monthly"
+                                priceUsd={priceUsd(billing.plan, "monthly")}
+                                merchantWallet={cfg.merchantWallet.toBase58()}
+                                usdcMint={cfg.usdcMint.toBase58()}
+                                rpcUrl={cfg.rpcUrl}
+                            />
                         </div>
                     )}
                 </section>
@@ -162,7 +219,7 @@ export default async function BillingPage() {
 // ─── plan feature table ────────────────────────────────────────────────────────
 const PLAN_FEATURES: Record<"free" | "pro" | "enterprise", { feature: string; value: string }[]> = {
     free: [
-        { feature: "Events / month", value: "500,000" },
+        { feature: "Events / month", value: "1,000,000" },
         { feature: "Beta testers", value: "Up to 200 (hard cap)" },
         { feature: "Team members", value: "1 (owner only)" },
         { feature: "Crash reports", value: "1,000 / month" },

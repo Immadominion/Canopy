@@ -1,53 +1,59 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { SIWSWalletConnect } from "@/components/auth/siws-wallet-connect";
+import { Leaf } from "@/components/ui/icon";
 
 export const metadata: Metadata = {
     title: "Sign In",
 };
 
 /**
- * Sign-in page — Nothing Design:
- *
- * Layer 1 (Primary):   "CANOPY" — Doto display font, the one pattern break (dot-grid bg)
- * Layer 2 (Secondary): Tagline — Space Grotesk, --text-secondary
- * Layer 3 (Tertiary):  Wallet list — Space Mono, ALL CAPS, interactive
- *
- * One accent red per screen: used on the → arrow hover and error state.
- * No gradients, no shadows, no skeleton screens, no toast.
+ * Sign-in — brand mark + wallet connect in a centered card.
  */
 export default function SignInPage() {
     return (
-        <div className="min-h-screen bg-nd-black flex items-center justify-center relative overflow-hidden">
-            {/* Dot-grid hero layer — the one pattern break for this screen */}
+        <div className="min-h-screen bg-nd-black flex items-center justify-center relative overflow-hidden px-nd-lg">
+            {/* Subtle teal glow behind the card */}
             <div
-                className="absolute inset-0 bg-nd-dot-grid-subtle bg-nd-dot-12 opacity-40"
+                className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[420px] h-[420px] rounded-full opacity-[0.08] blur-3xl"
+                style={{ background: "radial-gradient(circle, #14B8A6 0%, transparent 70%)" }}
                 aria-hidden="true"
             />
 
-            {/* Content column */}
-            <div className="relative z-10 w-full max-w-sm px-nd-xl py-nd-4xl">
-                {/* ── Layer 1: Primary — CANOPY wordmark ── */}
-                <div className="mb-nd-3xl">
-                    <h1 className="font-display text-nd-display-xl text-nd-text-display leading-none tracking-tighter select-none">
-                        CANOPY
+            <div className="relative z-10 w-full max-w-sm text-center">
+                {/* Brand */}
+                <div className="flex flex-col items-center mb-nd-xl">
+                    <span className="flex items-center justify-center w-14 h-14 rounded-nd-lg bg-nd-brand text-nd-on-brand shadow-nd-glow-brand mb-nd-lg">
+                        <Leaf size={28} weight="fill" />
+                    </span>
+                    <h1 className="font-body text-nd-display-md font-extrabold text-nd-text-display tracking-tight">
+                        Canopy
                     </h1>
+                    <p className="mt-nd-sm text-nd-body-sm text-nd-text-secondary">
+                        Developer infrastructure for Solana Mobile.
+                    </p>
                 </div>
 
-                {/* ── Layer 2: Secondary — Tagline ── */}
-                <p className="font-body text-nd-body text-nd-text-secondary mb-nd-2xl leading-relaxed">
-                    Developer infrastructure for Solana Mobile apps.
+                {/* Wallet connect card */}
+                <div className="card p-nd-lg">
+                    <p className="text-nd-body-sm text-nd-text-secondary mb-nd-lg">
+                        Connect your wallet to continue
+                    </p>
+                    <SIWSWalletConnect />
+                </div>
+
+                <p className="mt-nd-xl text-nd-caption text-nd-text-disabled leading-relaxed">
+                    By connecting your wallet you agree to Canopy&apos;s{" "}
+                    <Link href="/terms" className="text-nd-text-secondary underline hover:text-nd-text-primary transition-colors">
+                        Terms
+                    </Link>{" "}
+                    and{" "}
+                    <Link href="/privacy" className="text-nd-text-secondary underline hover:text-nd-text-primary transition-colors">
+                        Privacy Policy
+                    </Link>
+                    .
                 </p>
-
-                {/* Separator */}
-                <div className="border-t border-nd-border mb-nd-xl" />
-
-                {/* ── Layer 3: Tertiary — Wallet connect ── */}
-                <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] mb-nd-lg">
-                    CONNECT YOUR WALLET TO CONTINUE
-                </p>
-
-                <SIWSWalletConnect />
             </div>
         </div>
     );

@@ -1,8 +1,32 @@
 -- Migration 0002: Analytics events (TimescaleDB hypertable) and crash reports
 
 -- ─── Prerequisite: TimescaleDB extension ───
+-- TimescaleDB is used in production for hypertable partitioning and continuous
+-- aggregates. It is NOT bundled with the local Supabase Postgres image, so this
+-- migration degrades gracefully: when the extension is unavailable, analytics
+-- tables become plain Postgres tables and the aggregates become live views.
+-- A `time_bucket` shim (backed by Postgres `date_bin`, epoch-aligned to match
+-- TimescaleDB semantics) is installed so view definitions are identical either way.
 
-CREATE EXTENSION IF NOT EXISTS timescaledb;
+DO $$
+BEGIN
+  BEGIN
+    CREATE EXTENSION IF NOT EXISTS timescaledb;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'timescaledb unavailable — using plain Postgres fallback for analytics';
+  END;
+END $$;
+
+-- Install a time_bucket shim only when TimescaleDB did not provide one.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+    CREATE OR REPLACE FUNCTION time_bucket(bucket INTERVAL, ts TIMESTAMPTZ)
+      RETURNS TIMESTAMPTZ
+      LANGUAGE sql IMMUTABLE PARALLEL SAFE AS
+      $fn$ SELECT date_bin(bucket, ts, TIMESTAMPTZ 'epoch') $fn$;
+  END IF;
+END $$;
 
 -- ─── analytics_events ───
 -- TimescaleDB hypertable partitioned by timestamp.
@@ -35,12 +59,17 @@ CREATE INDEX analytics_events_wallet_hash_idx
 CREATE INDEX analytics_events_name_idx
   ON analytics_events (name, timestamp DESC);
 
--- Convert to hypertable — partition by week
-SELECT create_hypertable(
-  'analytics_events',
-  'timestamp',
-  chunk_time_interval => INTERVAL '7 days'
-);
+-- Convert to hypertable — partition by week (only when TimescaleDB is present)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+    PERFORM create_hypertable(
+      'analytics_events',
+      'timestamp',
+      chunk_time_interval => INTERVAL '7 days'
+    );
+  END IF;
+END $$;
 
 ALTER TABLE analytics_events ENABLE ROW LEVEL SECURITY;
 
@@ -60,45 +89,72 @@ CREATE POLICY "analytics_events_select_own" ON analytics_events
 
 -- ─── Continuous aggregates for dashboard queries ───
 
--- Daily active wallets per app
-CREATE MATERIALIZED VIEW analytics_daw_daily
-WITH (timescaledb.continuous) AS
-SELECT
-  app_id,
-  time_bucket('1 day', timestamp) AS bucket,
-  COUNT(DISTINCT wallet_hash) AS distinct_wallets,
-  COUNT(*) AS event_count
-FROM analytics_events
-GROUP BY app_id, time_bucket('1 day', timestamp)
-WITH NO DATA;
+-- With TimescaleDB: real continuous aggregates (materialized, auto-refreshed).
+-- Without it: plain live views with the same columns (always current).
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+    -- Daily active wallets per app
+    EXECUTE $ddl$
+      CREATE MATERIALIZED VIEW analytics_daw_daily
+      WITH (timescaledb.continuous) AS
+      SELECT
+        app_id,
+        time_bucket('1 day', timestamp) AS bucket,
+        COUNT(DISTINCT wallet_hash) AS distinct_wallets,
+        COUNT(*) AS event_count
+      FROM analytics_events
+      GROUP BY app_id, time_bucket('1 day', timestamp)
+      WITH NO DATA $ddl$;
 
--- Seeker vs non-Seeker breakdown per day
-CREATE MATERIALIZED VIEW analytics_seeker_daily
-WITH (timescaledb.continuous) AS
-SELECT
-  app_id,
-  time_bucket('1 day', timestamp) AS bucket,
-  COALESCE(is_seeker, false) AS is_seeker,
-  COUNT(DISTINCT wallet_hash) AS distinct_wallets
-FROM analytics_events
-GROUP BY app_id, time_bucket('1 day', timestamp), COALESCE(is_seeker, false)
-WITH NO DATA;
+    -- Seeker vs non-Seeker breakdown per day
+    EXECUTE $ddl$
+      CREATE MATERIALIZED VIEW analytics_seeker_daily
+      WITH (timescaledb.continuous) AS
+      SELECT
+        app_id,
+        time_bucket('1 day', timestamp) AS bucket,
+        COALESCE(is_seeker, false) AS is_seeker,
+        COUNT(DISTINCT wallet_hash) AS distinct_wallets
+      FROM analytics_events
+      GROUP BY app_id, time_bucket('1 day', timestamp), COALESCE(is_seeker, false)
+      WITH NO DATA $ddl$;
 
--- Add refresh policies (keep 90 days of continuous aggregates)
-SELECT add_continuous_aggregate_policy('analytics_daw_daily',
-  start_offset => INTERVAL '3 days',
-  end_offset   => INTERVAL '1 hour',
-  schedule_interval => INTERVAL '1 hour'
-);
+    -- Add refresh policies (keep 90 days of continuous aggregates)
+    PERFORM add_continuous_aggregate_policy('analytics_daw_daily',
+      start_offset => INTERVAL '3 days',
+      end_offset   => INTERVAL '1 hour',
+      schedule_interval => INTERVAL '1 hour');
 
-SELECT add_continuous_aggregate_policy('analytics_seeker_daily',
-  start_offset => INTERVAL '3 days',
-  end_offset   => INTERVAL '1 hour',
-  schedule_interval => INTERVAL '1 hour'
-);
+    PERFORM add_continuous_aggregate_policy('analytics_seeker_daily',
+      start_offset => INTERVAL '3 days',
+      end_offset   => INTERVAL '1 hour',
+      schedule_interval => INTERVAL '1 hour');
 
--- Data retention: keep raw events for 90 days, aggregates for 2 years
-SELECT add_retention_policy('analytics_events', INTERVAL '90 days');
+    -- Data retention: keep raw events for 90 days
+    PERFORM add_retention_policy('analytics_events', INTERVAL '90 days');
+  ELSE
+    EXECUTE $ddl$
+      CREATE VIEW analytics_daw_daily AS
+      SELECT
+        app_id,
+        time_bucket('1 day', timestamp) AS bucket,
+        COUNT(DISTINCT wallet_hash) AS distinct_wallets,
+        COUNT(*) AS event_count
+      FROM analytics_events
+      GROUP BY app_id, time_bucket('1 day', timestamp) $ddl$;
+
+    EXECUTE $ddl$
+      CREATE VIEW analytics_seeker_daily AS
+      SELECT
+        app_id,
+        time_bucket('1 day', timestamp) AS bucket,
+        COALESCE(is_seeker, false) AS is_seeker,
+        COUNT(DISTINCT wallet_hash) AS distinct_wallets
+      FROM analytics_events
+      GROUP BY app_id, time_bucket('1 day', timestamp), COALESCE(is_seeker, false) $ddl$;
+  END IF;
+END $$;
 
 -- ─── crash_reports ───
 

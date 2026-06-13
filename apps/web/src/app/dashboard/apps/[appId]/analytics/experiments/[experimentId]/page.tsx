@@ -52,7 +52,7 @@ export default async function ExperimentResultsPage({ params }: Props) {
     const experiment = { ...experimentBase, experiment_variants: variants ?? [] };
 
     return (
-        <div className="min-h-screen bg-black text-white p-8 space-y-10">
+        <div className="min-h-full bg-black text-white p-8 space-y-10">
             {/* ── Header ───────────────────────────────────────────────────── */}
             <header className="relative overflow-hidden border border-white/10 p-8">
                 <div

@@ -40,6 +40,27 @@ export async function createSupabaseServerClient() {
 }
 
 /**
+ * Creates a stateless Supabase client with the public anon key — no cookies, no
+ * persisted session. Used for operations that act purely on a token supplied in
+ * the request (e.g. refreshing a mobile session from its refresh token), where
+ * the cookie-bound server client would be the wrong session context.
+ */
+export function createSupabaseStatelessClient() {
+    const supabaseUrl = process.env['NEXT_PUBLIC_SUPABASE_URL'];
+    const supabaseAnonKey = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'];
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error(
+            "Missing Supabase environment variables: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        );
+    }
+
+    return createClient<Database>(supabaseUrl, supabaseAnonKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+    });
+}
+
+/**
  * Creates a Supabase admin client using the service role key.
  * NEVER expose this client to the browser. Only use in trusted server contexts.
  */
