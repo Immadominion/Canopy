@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { SIWSWalletConnect } from "@/components/auth/siws-wallet-connect";
-import { Leaf } from "@/components/ui/icon";
 
 export const metadata: Metadata = {
     title: "Sign In",
@@ -24,9 +23,7 @@ export default function SignInPage() {
             <div className="relative z-10 w-full max-w-sm text-center">
                 {/* Brand */}
                 <div className="flex flex-col items-center mb-nd-xl">
-                    <span className="flex items-center justify-center w-14 h-14 rounded-nd-lg bg-nd-brand text-nd-on-brand shadow-nd-glow-brand mb-nd-lg">
-                        <Leaf size={28} weight="fill" />
-                    </span>
+                    <img src="/canopy-mark.png" alt="Canopy" width={64} height={64} className="object-contain mb-nd-lg" />
                     <h1 className="font-body text-nd-display-md font-extrabold text-nd-text-display tracking-tight">
                         Canopy
                     </h1>
