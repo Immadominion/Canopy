@@ -49,19 +49,19 @@ localConnectionString = "postgresql://postgres:postgres@127.0.0.1:54322/postgres
 # ─────────────────────────────────────────────────────────────────────────────
 [env.production]
 name = "canopy-ingest"
-routes = [{ pattern = "ingest.canopy.dev/*", custom_domain = true }]
+routes = [{ pattern = "ingest.trycanopy.xyz/*", custom_domain = true }]
 
 [env.production.vars]
 ENVIRONMENT = "production"
 
 [[env.production.kv_namespaces]]
 binding = "API_KEYS_KV"
-id = "REPLACE_WITH_KV_ID"
+id = "a354a88d5e304de9b72050daa9ed58f2"
 preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
 
 [[env.production.kv_namespaces]]
 binding = "EVENT_DEDUP_KV"
-id = "REPLACE_WITH_DEDUP_KV_ID"
+id = "a0d948a97a6b433e97d3d614602630c4"
 preview_id = "REPLACE_WITH_DEDUP_KV_PREVIEW_ID"
 
 [[env.production.durable_objects.bindings]]
@@ -70,4 +70,4 @@ class_name = "RateLimiter"
 
 [[env.production.hyperdrive]]
 binding = "HYPERDRIVE"
-id = "REPLACE_WITH_HYPERDRIVE_ID"
+id = "324d76b6f04a47d1806d835159579b32"

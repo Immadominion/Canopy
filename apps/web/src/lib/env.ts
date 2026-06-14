@@ -48,7 +48,7 @@ const serverEnvSchema = z.object({
 
     // Resend — transactional email (team invites)
     RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
-    RESEND_FROM_EMAIL: z.string().email().default("Canopy <no-reply@mail.canopy.build>"),
+    RESEND_FROM_EMAIL: z.string().email().default("Canopy <no-reply@mail.trycanopy.xyz>"),
 
     // (Stripe removed — billing is on-chain USDC; see the billing block below.)
 

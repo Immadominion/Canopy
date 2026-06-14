@@ -24,7 +24,7 @@ app.use(
         origin: (origin) => {
             // SDK sends from app context — no Origin header from native apps
             // Browser testing allowed from canopy.dev
-            if (!origin || origin.endsWith(".canopy.dev")) return origin.length > 0 ? origin : "";
+            if (!origin || origin.endsWith(".trycanopy.xyz")) return origin.length > 0 ? origin : "";
             return "";
         },
         allowMethods: ["POST", "GET", "OPTIONS"],

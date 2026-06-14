@@ -51,7 +51,7 @@ export function registerConfigCommand(program: Command): void {
                 : chalk.dim("(not set)");
             table([
                 ["API KEY", apiKey],
-                ["API URL", config.apiUrl ?? "https://canopy.dev/api/v1 (default)"],
+                ["API URL", config.apiUrl ?? "https://trycanopy.xyz/api/v1 (default)"],
             ]);
             console.log();
         });

@@ -90,7 +90,7 @@ async function run(): Promise<void> {
         }
 
         // POST to the Canopy API.
-        const apiUrl = process.env["CANOPY_API_URL"] ?? "https://canopy.dev/api/v1";
+        const apiUrl = process.env["CANOPY_API_URL"] ?? "https://trycanopy.xyz/api/v1";
         const endpoint = `${apiUrl}/beta/upload`;
 
         core.debug(`POST ${endpoint}`);

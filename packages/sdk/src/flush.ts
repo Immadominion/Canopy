@@ -8,7 +8,7 @@
 import type { CanopyEvent, FlushPayload, CanopyConfig } from "@canopy/types";
 
 const FLUSH_BATCH_SIZE = 50;
-const DEFAULT_INGEST_URL = "https://ingest.canopy.dev";
+const DEFAULT_INGEST_URL = "https://ingest.trycanopy.xyz";
 
 /**
  * POST all events to the ingest service in batches.

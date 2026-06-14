@@ -94,7 +94,7 @@ async function run(): Promise<void> {
 
         core.startGroup("Creating Canopy release record");
 
-        const apiUrl = process.env["CANOPY_API_URL"] ?? "https://canopy.dev/api/v1";
+        const apiUrl = process.env["CANOPY_API_URL"] ?? "https://trycanopy.xyz/api/v1";
         const endpoint = `${apiUrl}/releases`;
 
         const payload: Record<string, unknown> = {

@@ -30,7 +30,7 @@ export function writeConfig(config: CanopyConfig): void {
 }
 
 export function getApiUrl(config: CanopyConfig): string {
-    return config.apiUrl ?? "https://canopy.dev/api/v1";
+    return config.apiUrl ?? "https://trycanopy.xyz/api/v1";
 }
 
 export function requireApiKey(config: CanopyConfig): string {
