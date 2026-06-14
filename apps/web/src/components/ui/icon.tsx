@@ -9,7 +9,6 @@
  * icons from here.
  */
 export {
-    Leaf,
     Package,
     ChartLine,
     Wrench,
