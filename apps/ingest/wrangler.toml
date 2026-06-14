@@ -11,7 +11,7 @@ compatibility_flags = ["nodejs_compat"]
 # ─────────────────────────────────────────────────────────────────────────────
 [[migrations]]
 tag = "v1"
-new_classes = ["RateLimiter"]
+new_sqlite_classes = ["RateLimiter"]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LOCAL DEV  →  `wrangler dev --env local`
