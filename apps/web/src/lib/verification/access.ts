@@ -1,5 +1,7 @@
 import crypto from "crypto";
 
+import { after } from "next/server";
+
 import { logger } from "@/lib/logger";
 import { checkPublisherAppNft } from "@/lib/solana/publisher-verification";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
@@ -117,16 +119,21 @@ export async function createAccessRequest(opts: {
         .eq("id", opts.publisherId)
         .in("verification_status", ["unverified", "rejected"]);
 
-    // Fire-and-forget founder notification (non-fatal).
-    void notifyAccessRequest({
-        requestId: data.id,
-        code: data.code,
-        displayName: opts.displayName,
-        projectSummary: opts.projectSummary,
-        walletShort: shortWallet(opts.walletAddress),
-        contactTelegram: opts.contactTelegram ?? null,
-        onchainAppNft: onchain,
-    });
+    // Founder notification — scheduled via after() so the serverless instance
+    // stays alive until the Telegram fetch resolves. A bare `void` here is
+    // dropped when the response is flushed and the request scope is torn down
+    // (the exact failure mode fixed for the scan dispatch in beta/upload/route.ts).
+    after(() =>
+        notifyAccessRequest({
+            requestId: data.id,
+            code: data.code,
+            displayName: opts.displayName,
+            projectSummary: opts.projectSummary,
+            walletShort: shortWallet(opts.walletAddress),
+            contactTelegram: opts.contactTelegram ?? null,
+            onchainAppNft: onchain,
+        }),
+    );
 
     return { status: "created", code: data.code, requestId: data.id };
 }

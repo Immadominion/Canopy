@@ -54,12 +54,17 @@ async function call(method: string, body: unknown): Promise<void> {
     if (!res.ok) {
         const text = await res.text().catch(() => "");
         log.warn({ method, status: res.status, text }, "Telegram API returned non-200");
+    } else {
+        log.info({ method, status: res.status }, "Telegram API ok");
     }
 }
 
-function escapeMd(s: string): string {
-    // Escape Telegram legacy-Markdown metacharacters.
-    return s.replace(/([_*`[\]])/g, "\\$1");
+function escapeHtml(s: string): string {
+    // Escape the three characters significant in Telegram's HTML parse_mode.
+    // HTML mode is far more robust than legacy Markdown for user-supplied text:
+    // a complete escape is possible (Markdown can't escape every metacharacter,
+    // so an odd `*`/`_` in a project summary would 400 and drop the message).
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 /** Notify the founder of a new access request with inline Approve/Reject buttons. */
@@ -72,7 +77,18 @@ export async function notifyAccessRequest(opts: {
     contactTelegram?: string | null;
     onchainAppNft: boolean | null;
 }): Promise<void> {
-    if (!telegramConfigured()) return;
+    if (!telegramConfigured()) {
+        log.warn(
+            { requestId: opts.requestId },
+            "Telegram not configured (bot token / admin chat id unset) — skipping access-request notification",
+        );
+        return;
+    }
+
+    log.info(
+        { requestId: opts.requestId, code: opts.code },
+        "Sending access-request Telegram notification",
+    );
 
     const approve = `ar:a:${opts.requestId}`;
     const reject = `ar:r:${opts.requestId}`;
@@ -81,14 +97,14 @@ export async function notifyAccessRequest(opts: {
         opts.onchainAppNft === null ? "unknown" : opts.onchainAppNft ? "yes ✅" : "none ⚠️";
 
     const text = [
-        "🌳 *Canopy — access request*",
+        "🌳 <b>Canopy — access request</b>",
         "",
-        `*Name:* ${escapeMd(opts.displayName)}`,
-        `*Building:* ${escapeMd(opts.projectSummary)}`,
-        `*Wallet:* \`${opts.walletShort}\``,
-        opts.contactTelegram ? `*Telegram:* ${escapeMd(opts.contactTelegram)}` : null,
-        `*On-chain app NFT:* ${onchain}`,
-        `*Code:* \`${opts.code}\``,
+        `<b>Name:</b> ${escapeHtml(opts.displayName)}`,
+        `<b>Building:</b> ${escapeHtml(opts.projectSummary)}`,
+        `<b>Wallet:</b> <code>${escapeHtml(opts.walletShort)}</code>`,
+        opts.contactTelegram ? `<b>Telegram:</b> ${escapeHtml(opts.contactTelegram)}` : null,
+        `<b>On-chain app NFT:</b> ${onchain}`,
+        `<b>Code:</b> <code>${escapeHtml(opts.code)}</code>`,
     ]
         .filter((l): l is string => l !== null)
         .join("\n");
@@ -96,7 +112,7 @@ export async function notifyAccessRequest(opts: {
     await call("sendMessage", {
         chat_id: env.TELEGRAM_ADMIN_CHAT_ID,
         text,
-        parse_mode: "Markdown",
+        parse_mode: "HTML",
         reply_markup: {
             inline_keyboard: [
                 [
@@ -106,6 +122,8 @@ export async function notifyAccessRequest(opts: {
             ],
         },
     });
+
+    log.info({ requestId: opts.requestId }, "Access-request Telegram notification dispatched");
 }
 
 export async function answerCallback(callbackQueryId: string, text: string): Promise<void> {
@@ -121,6 +139,6 @@ export async function editMessageText(
         chat_id: chatId,
         message_id: messageId,
         text,
-        parse_mode: "Markdown",
+        parse_mode: "HTML",
     });
 }

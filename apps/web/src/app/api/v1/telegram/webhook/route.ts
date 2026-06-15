@@ -93,7 +93,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         await editMessageText(
             cb.message.chat.id,
             cb.message.message_id,
-            `🌳 *Canopy* — *${escapeName(result.displayName)}* → *${verb}*${note}`,
+            `🌳 <b>Canopy</b> — <b>${escapeName(result.displayName)}</b> → <b>${verb}</b>${note}`,
         );
     }
 
@@ -101,7 +101,8 @@ export async function POST(request: Request): Promise<NextResponse> {
 }
 
 function escapeName(s: string): string {
-    return s.replace(/([_*`[\]])/g, "\\$1");
+    // Matches the HTML parse_mode used by editMessageText.
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 interface TelegramCallbackQuery {
