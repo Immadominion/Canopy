@@ -217,6 +217,10 @@ export interface Database {
                     arweave_tx_id?: string | null;
                     apk_deleted_at?: string | null;
                     tester_count?: number;
+                    // Admin-only (founder console /extend). The DB CHECK
+                    // (expires_at <= created_at + 30 days) is the hard backstop;
+                    // app code clamps to the same cap before writing.
+                    expires_at?: string;
                     updated_at?: string;
                 };
                 Relationships: [];

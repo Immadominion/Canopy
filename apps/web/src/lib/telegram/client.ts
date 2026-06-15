@@ -142,3 +142,42 @@ export async function editMessageText(
         parse_mode: "HTML",
     });
 }
+
+/**
+ * Send an HTML message to a chat (best-effort). Used by the admin command
+ * router to reply to typed commands. Web-page previews are off by default so a
+ * URL in a reply doesn't balloon the message.
+ */
+export async function sendMessage(
+    chatId: number | string,
+    text: string,
+    opts?: { replyMarkup?: unknown; disablePreview?: boolean },
+): Promise<void> {
+    await call("sendMessage", {
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: opts?.disablePreview ?? true,
+        ...(opts?.replyMarkup ? { reply_markup: opts.replyMarkup } : {}),
+    });
+}
+
+/**
+ * Inline confirm/cancel keyboard for a destructive admin action. The confirm
+ * button carries `<action>:<sig>` where sig = signAction(action), so the tap
+ * can only fire from a Canopy-issued button — the same HMAC scheme that guards
+ * the approve/reject buttons. Cancel is an unsigned no-op (`x:cancel`).
+ */
+export function confirmKeyboard(
+    action: string,
+    confirmLabel = "Confirm",
+): { inline_keyboard: { text: string; callback_data: string }[][] } {
+    return {
+        inline_keyboard: [
+            [
+                { text: `✅ ${confirmLabel}`, callback_data: `${action}:${signAction(action)}` },
+                { text: "✕ Cancel", callback_data: "x:cancel" },
+            ],
+        ],
+    };
+}
