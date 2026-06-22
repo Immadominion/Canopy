@@ -303,7 +303,7 @@ export function Landing({ authed }: { authed: boolean }): React.JSX.Element {
                             </p>
                         </div>
                         <div className={styles["fcol"]}>
-                            <h4>Product</h4>
+                            <h3>Product</h3>
                             <ul>
                                 <li>
                                     <a href="#how">How it works</a>
@@ -317,7 +317,7 @@ export function Landing({ authed }: { authed: boolean }): React.JSX.Element {
                             </ul>
                         </div>
                         <div className={styles["fcol"]}>
-                            <h4>Resources</h4>
+                            <h3>Resources</h3>
                             <ul>
                                 <li>
                                     <Link href="/status">Status</Link>
@@ -328,7 +328,7 @@ export function Landing({ authed }: { authed: boolean }): React.JSX.Element {
                             </ul>
                         </div>
                         <div className={styles["fcol"]}>
-                            <h4>Company</h4>
+                            <h3>Company</h3>
                             <ul>
                                 <li>
                                     <Link href="/privacy">Privacy</Link>

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
  */
 export default function SignInPage() {
     return (
-        <div className="min-h-screen bg-nd-black flex items-center justify-center relative overflow-hidden px-nd-lg">
+        <main className="min-h-screen bg-nd-black flex items-center justify-center relative overflow-hidden px-nd-lg">
             {/* Subtle teal glow behind the card */}
             <div
                 className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[420px] h-[420px] rounded-full opacity-[0.08] blur-3xl"
@@ -40,7 +40,7 @@ export default function SignInPage() {
                     <SIWSWalletConnect />
                 </div>
 
-                <p className="mt-nd-xl text-nd-caption text-nd-text-disabled leading-relaxed">
+                <p className="mt-nd-xl text-nd-caption text-nd-text-secondary leading-relaxed">
                     By connecting your wallet you agree to Canopy&apos;s{" "}
                     <Link href="/terms" className="text-nd-text-secondary underline hover:text-nd-text-primary transition-colors">
                         Terms
@@ -52,6 +52,6 @@ export default function SignInPage() {
                     .
                 </p>
             </div>
-        </div>
+        </main>
     );
 }
