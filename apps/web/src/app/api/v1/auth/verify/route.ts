@@ -67,12 +67,20 @@ export async function POST(request: Request): Promise<NextResponse> {
     //    we're about to consume. Domain enforcement is prod-only (the dev/preview
     //    host varies); the nonce + address checks always apply.
     const appHost = new URL(env.NEXT_PUBLIC_APP_URL).host;
+    // Enforce the signed domain only on the REAL production deployment, where
+    // window.location.host == NEXT_PUBLIC_APP_URL host. On Vercel preview deploys
+    // (VERCEL_ENV="preview") and local dev the host differs, so enforcing there
+    // would break sign-in for no security gain — previews aren't the phishing
+    // target, production is. Fall back to NODE_ENV when not on Vercel.
+    const isRealProd = env.VERCEL_ENV
+        ? env.VERCEL_ENV === "production"
+        : env.NODE_ENV === "production";
     const messageCheck = parseAndValidateSIWSMessage({
         message,
         wallet,
         nonce,
         allowedDomains: [appHost],
-        skipDomainCheck: env.NODE_ENV !== "production",
+        skipDomainCheck: !isRealProd,
     });
     if (!messageCheck.ok) {
         log.warn({ reason: messageCheck.reason }, "SIWS message validation failed");

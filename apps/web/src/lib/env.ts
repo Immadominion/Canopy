@@ -37,6 +37,10 @@ const serverEnvSchema = z.object({
     NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
     INGEST_BASE_URL: z.string().url("INGEST_BASE_URL must be a valid URL"),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    // Set automatically by Vercel: "production" | "preview" | "development".
+    // Used to enforce the SIWS sign-in domain ONLY on the real production
+    // deployment (preview deploys serve from a different *.vercel.app host).
+    VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
 
     // Cron security — Vercel sends this as Bearer token when invoking cron routes
     // Optional so local dev works without it; the route still enforces in production.
