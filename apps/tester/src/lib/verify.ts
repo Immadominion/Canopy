@@ -12,6 +12,7 @@
 import * as FileSystem from "expo-file-system";
 
 import { initiateInstall, type BetaSummary } from "./api";
+import { getValidAccessToken } from "./session";
 import { installer } from "../native/installer";
 
 export type InstallStep =
@@ -80,13 +81,17 @@ function sleep(ms: number): Promise<void> {
 async function downloadApk(
     url: string,
     target: string,
+    authToken: string,
     onProgress?: (pct: number) => void,
     attempts = 3,
 ): Promise<FileSystem.FileSystemDownloadResult | { httpStatus: number }> {
+    // The download endpoint is wallet-scoped: send the session Bearer token so
+    // the server can confirm we are the wallet the signed URL was issued to.
+    const options = { headers: { Authorization: `Bearer ${authToken}` } };
     let lastStatus = 0;
     for (let attempt = 0; attempt < attempts; attempt++) {
         try {
-            const resumable = FileSystem.createDownloadResumable(url, target, {}, (p) => {
+            const resumable = FileSystem.createDownloadResumable(url, target, options, (p) => {
                 if (p.totalBytesExpectedToWrite > 0) {
                     onProgress?.(p.totalBytesWritten / p.totalBytesExpectedToWrite);
                 }
@@ -117,10 +122,12 @@ export async function downloadVerifyInstall(
     try {
         onStep?.("preparing");
         const ticket = await initiateInstall(beta.trackId);
+        // The download endpoint requires a session for the URL's bound wallet.
+        const authToken = await getValidAccessToken();
 
         onStep?.("downloading");
         const target = `${FileSystem.cacheDirectory ?? ""}${fingerprint}.apk`;
-        const dl = await downloadApk(ticket.url, target, onProgress);
+        const dl = await downloadApk(ticket.url, target, authToken, onProgress);
         if (!("uri" in dl)) {
             return { ok: false, step: "downloading", errorCode: `HTTP_${String(dl.httpStatus)}` };
         }

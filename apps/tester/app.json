@@ -16,12 +16,19 @@
         ],
         "android": {
             "package": "app.canopy.tester",
+            "versionCode": 1,
             "adaptiveIcon": {
                 "foregroundImage": "./assets/logo.png",
                 "backgroundColor": "#0E0E10"
             },
             "permissions": [
                 "android.permission.REQUEST_INSTALL_PACKAGES"
+            ],
+            "blockedPermissions": [
+                "android.permission.READ_EXTERNAL_STORAGE",
+                "android.permission.WRITE_EXTERNAL_STORAGE",
+                "android.permission.SYSTEM_ALERT_WINDOW",
+                "android.permission.VIBRATE"
             ]
         },
         "plugins": [

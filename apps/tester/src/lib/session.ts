@@ -172,3 +172,22 @@ export async function authedFetch(path: string, init?: RequestInit): Promise<Res
     }
     return res;
 }
+
+/**
+ * Returns a valid Bearer access token, refreshing proactively when it is near
+ * expiry. For requests that can't go through authedFetch — specifically the APK
+ * download, which streams via expo-file-system but must still prove the wallet's
+ * session to the wallet-bound download endpoint (apps/web .../beta/download).
+ * Throws UnauthenticatedError when there is no session.
+ */
+export async function getValidAccessToken(): Promise<string> {
+    let session = await loadSession();
+    if (!session) throw new UnauthenticatedError();
+
+    if (session.expiresAt != null && session.expiresAt - REFRESH_SKEW_SECONDS <= nowSeconds()) {
+        const refreshed = await refreshSession(session);
+        if (refreshed) session = refreshed;
+    }
+
+    return session.accessToken;
+}
