@@ -279,9 +279,19 @@ export function SIWSWalletConnect() {
                 </div>
             )}
 
+            {/* Always-mounted live regions so assistive tech announces sign-in
+                progress and errors on this launch-critical flow. The visible
+                text below is aria-hidden to avoid a double announcement. */}
+            <p role="status" aria-live="polite" className="sr-only">
+                {status !== "error" ? label ?? "" : ""}
+            </p>
+            <p role="alert" aria-live="assertive" className="sr-only">
+                {status === "error" ? label ?? "" : ""}
+            </p>
             {/* Inline status — no toast, no spinner (Nothing Design rule) */}
             {label !== null && (
                 <p
+                    aria-hidden="true"
                     className={`mt-nd-md font-mono text-nd-label uppercase tracking-[0.08em] ${status === "error" ? "text-nd-accent" : "text-nd-text-disabled"
                         }`}
                 >

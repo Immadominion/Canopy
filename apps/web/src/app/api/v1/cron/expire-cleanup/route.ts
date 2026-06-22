@@ -1,8 +1,8 @@
 import type { NextRequest } from "next/server";
 
+import { requireCronAuth } from "@/lib/api/cron-auth";
 import { deleteApkFromR2 } from "@/lib/r2/client";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -26,17 +26,11 @@ const BATCH_SIZE = 50;
  * Returns: { forceExpired, deleted, errors }
  */
 export async function GET(request: NextRequest): Promise<Response> {
-    // ── Security: verify the Vercel CRON_SECRET ──────────────────────────────
-    const authHeader = request.headers.get("authorization");
-    const cronSecret = env.CRON_SECRET;
-
-    // In production, CRON_SECRET must be set and must match.
-    // In development, allow the call to proceed without a secret so local testing works.
-    if (env.NODE_ENV === "production") {
-        if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-            return new Response("Unauthorized", { status: 401 });
-        }
-    }
+    // Fail closed in EVERY environment: this route force-expires tracks and
+    // permanently deletes APKs from R2, so it must never run open (e.g. on a
+    // preview/staging deploy where NODE_ENV !== "production").
+    const denied = requireCronAuth(request);
+    if (denied) return denied;
 
     const admin = createSupabaseAdminClient();
     const cronLogger = logger.child({ cron: "expire-cleanup" });

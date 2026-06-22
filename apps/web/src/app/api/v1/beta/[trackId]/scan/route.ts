@@ -3,6 +3,7 @@ import { NextResponse, after } from "next/server";
 import { isValidUuid } from "@canopy/utils";
 
 import { apiError } from "@/lib/api/errors";
+import { requireCronAuth } from "@/lib/api/cron-auth";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { scanApk } from "@/lib/malware/virustotal";
@@ -42,7 +43,13 @@ interface ScanTrack {
  * INVARIANT: a track MUST NOT become `scan_passed` unless VirusTotal reports
  * zero malicious detections. `scan_failed` is terminal.
  */
-export async function POST(_request: Request, { params }: RouteParams): Promise<NextResponse> {
+export async function POST(request: Request, { params }: RouteParams): Promise<Response> {
+    // Internal endpoint: only callers holding CRON_SECRET (the upload route's
+    // trigger) may start a scan. Previously unauthenticated — a known trackId
+    // could be used to burn VirusTotal quota / re-download another's APK.
+    const denied = requireCronAuth(request);
+    if (denied) return denied;
+
     const { trackId } = await params;
     if (!isValidUuid(trackId)) return apiError("NOT_FOUND", "Track not found", 404);
 
@@ -98,58 +105,93 @@ async function runScan(admin: AdminClient, track: ScanTrack): Promise<void> {
             { err, trackId: track.id },
             "Failed to download APK from R2 — reverting to pending_scan",
         );
-        await admin.from("beta_tracks").update({ status: "pending_scan" }).eq("id", track.id);
+        await revertToPending(admin, track.id);
         return;
     }
 
-    const result = await scanApk(track.apk_sha256, apkBytes, vtKey);
+    // From here on, ANY unexpected throw (VT client, malformed response, DB
+    // update) must not strand the track in `scan_in_progress` forever — it would
+    // no longer be `pending_scan`, so neither the upload trigger nor the recheck
+    // cron would retry it. Wrap the whole settle path and revert on failure.
+    try {
+        const result = await scanApk(track.apk_sha256, apkBytes, vtKey);
 
-    // Resolve the publisher's wallet so we can notify them (no-ops via Herald
-    // unless they've opted in — Canopy never stores their contact).
-    const { data: pub } = await admin
-        .from("publishers")
-        .select("wallet_address")
-        .eq("id", track.publisher_id)
-        .maybeSingle();
-    const devWallet = pub?.wallet_address ?? null;
+        // Resolve the publisher's wallet so we can notify them (no-ops via Herald
+        // unless they've opted in — Canopy never stores their contact).
+        const { data: pub } = await admin
+            .from("publishers")
+            .select("wallet_address")
+            .eq("id", track.publisher_id)
+            .maybeSingle();
+        const devWallet = pub?.wallet_address ?? null;
 
-    if (result.outcome === "clean") {
-        await admin.from("beta_tracks").update({ status: "scan_passed" }).eq("id", track.id);
-        log.info({ trackId: track.id }, "Malware scan passed — track is now scan_passed");
-        if (devWallet) {
-            await notifyDeveloper({
-                wallet: devWallet,
+        if (result.outcome === "clean") {
+            await admin.from("beta_tracks").update({ status: "scan_passed" }).eq("id", track.id);
+            log.info({ trackId: track.id }, "Malware scan passed — track is now scan_passed");
+            await notifyBestEffort(track.id, devWallet, {
                 subject: "Build scan passed",
                 body: "Your Canopy beta build passed the malware scan and is ready to activate.",
                 category: "system",
                 idempotencyKey: `scan_${track.id}_passed`,
             });
+            return;
         }
-        return;
-    }
 
-    if (result.outcome === "malicious") {
-        await admin.from("beta_tracks").update({ status: "scan_failed" }).eq("id", track.id);
-        log.error(
-            { trackId: track.id, maliciousCount: result.maliciousCount, engineCount: result.engineCount },
-            "Malware scan FAILED — track set to scan_failed",
-        );
-        if (devWallet) {
-            await notifyDeveloper({
-                wallet: devWallet,
+        if (result.outcome === "malicious") {
+            await admin.from("beta_tracks").update({ status: "scan_failed" }).eq("id", track.id);
+            log.error(
+                { trackId: track.id, maliciousCount: result.maliciousCount, engineCount: result.engineCount },
+                "Malware scan FAILED — track set to scan_failed",
+            );
+            await notifyBestEffort(track.id, devWallet, {
                 subject: "Build scan failed",
                 body: "Your Canopy beta build did not pass the malware scan and was blocked.",
                 category: "security",
                 idempotencyKey: `scan_${track.id}_failed`,
             });
+            return;
         }
-        return;
-    }
 
-    // outcome === "unavailable" — VT couldn't complete; revert so it can retry.
-    log.warn(
-        { trackId: track.id, reason: result.reason },
-        "Malware scan unavailable — reverting to pending_scan",
-    );
-    await admin.from("beta_tracks").update({ status: "pending_scan" }).eq("id", track.id);
+        // outcome === "unavailable" — VT couldn't complete; revert so it can retry.
+        log.warn(
+            { trackId: track.id, reason: result.reason },
+            "Malware scan unavailable — reverting to pending_scan",
+        );
+        await revertToPending(admin, track.id);
+    } catch (err) {
+        log.error({ err, trackId: track.id }, "runScan crashed — reverting to pending_scan");
+        await revertToPending(admin, track.id);
+    }
+}
+
+/** Revert a track to `pending_scan` so a later trigger/recheck can retry it. */
+async function revertToPending(admin: AdminClient, trackId: string): Promise<void> {
+    try {
+        await admin.from("beta_tracks").update({ status: "pending_scan" }).eq("id", trackId);
+    } catch (err) {
+        log.error({ err, trackId }, "Failed to revert track to pending_scan");
+    }
+}
+
+/**
+ * Notify the developer (Herald), but never let a notification failure undo a
+ * settled scan status — the status update is the source of truth, the notify is
+ * a courtesy. Herald idempotency keys make a retried scan safe to re-notify.
+ */
+async function notifyBestEffort(
+    trackId: string,
+    devWallet: string | null,
+    notification: {
+        subject: string;
+        body: string;
+        category: "system" | "security";
+        idempotencyKey: string;
+    },
+): Promise<void> {
+    if (!devWallet) return;
+    try {
+        await notifyDeveloper({ wallet: devWallet, ...notification });
+    } catch (err) {
+        log.warn({ err, trackId }, "Developer notification failed (non-fatal)");
+    }
 }

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { isValidUuid } from "@canopy/utils";
 
 import { apiError, notFound } from "@/lib/api/errors";
+import { getSessionWallet } from "@/lib/auth/session";
 import { fetchApkFromR2 } from "@/lib/r2/client";
 import { validateSignedDownloadUrl } from "@/lib/r2/signed-url";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
@@ -21,8 +22,11 @@ interface RouteParams {
  * The R2 object key is resolved server-side from the track record — never
  * provided by the client.
  *
- * This endpoint does NOT require a Supabase session — the signed URL itself
- * is the credential. (It was issued only to wallets on the track's allowlist.)
+ * The signed URL embeds a walletHash, but possessing the URL is NOT sufficient:
+ * the caller must also be signed in AS that wallet. This makes the URL
+ * non-transferable — a forwarded/leaked link is useless without that wallet's
+ * session. Web sends the httpOnly cookie automatically; the native app sends its
+ * Bearer token (see apps/tester/src/lib/verify.ts).
  */
 export async function GET(request: Request, { params }: RouteParams): Promise<NextResponse> {
     const { trackId } = await params;
@@ -47,6 +51,14 @@ export async function GET(request: Request, { params }: RouteParams): Promise<Ne
             return apiError("URL_EXPIRED", "Download URL has expired", 410);
         }
         // Any other failure (bad sig, payload tamper, mismatch) -> 404
+        return notFound();
+    }
+
+    // Bind the download to the signed-in wallet: the URL is wallet-scoped, not a
+    // bearer token. The caller must hold a session for the SAME wallet the URL
+    // was issued to, so a leaked/forwarded URL can't be redeemed by anyone else.
+    const session = await getSessionWallet();
+    if (!session || session.walletHash !== payload.walletHash) {
         return notFound();
     }
 

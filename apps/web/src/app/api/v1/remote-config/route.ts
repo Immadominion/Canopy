@@ -214,7 +214,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Look up the key by prefix and verify scope
     const { data: keyRow } = await admin
         .from("api_keys")
-        .select("id, key_hash, scopes, revoked_at, app_id")
+        .select("id, key_hash, scopes, revoked_at, app_id, publisher_id")
         .eq("key_prefix", keyPrefix)
         .is("revoked_at", null)
         .maybeSingle();
@@ -239,9 +239,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         return apiError("FORBIDDEN", "API key is scoped to a different app", 403);
     }
 
-    // Verify the appId exists
-    const { data: app } = await admin.from("apps").select("id").eq("id", appId).maybeSingle();
-    if (!app) {
+    // Resolve the app AND enforce tenant ownership: the requested app MUST belong
+    // to the key's publisher. Without this, a key whose app_id is null (every
+    // dashboard-created key) could read ANY app's remote config cross-tenant.
+    // 404 (not 403) so we never reveal another tenant's app exists.
+    const { data: app } = await admin
+        .from("apps")
+        .select("id, publisher_id")
+        .eq("id", appId)
+        .maybeSingle();
+    if (!app || app.publisher_id !== keyRow.publisher_id) {
         return apiError("NOT_FOUND", "App not found", 404);
     }
 

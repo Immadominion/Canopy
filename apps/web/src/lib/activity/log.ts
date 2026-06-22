@@ -1,3 +1,5 @@
+import { after } from "next/server";
+
 import type { OrgActivityEntityType } from "@canopy/types";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
@@ -14,27 +16,26 @@ export interface LogActivityParams {
 }
 
 /**
- * Fire-and-forget activity log write.
- *
- * Errors are swallowed — a failed activity log write must never block
- * the primary operation. Callers should not await unless they need confirmation.
+ * Best-effort activity (audit) log write, deferred to after the response via
+ * `after()` so the serverless runtime can't tear it down mid-write. A plain
+ * un-awaited insert was getting dropped when the response returned, leaving gaps
+ * in the audit trail for security-relevant actions (key creation, member
+ * changes). Errors are swallowed — a failed audit write must never block the
+ * primary operation. Safe to call from any route handler (request scope).
  */
 export function logActivity(params: LogActivityParams): void {
-    const admin = createSupabaseAdminClient();
-
-    void admin
-        .from("org_activity_log")
-        .insert({
+    after(async () => {
+        const admin = createSupabaseAdminClient();
+        const { error } = await admin.from("org_activity_log").insert({
             org_id: params.orgId,
             actor_id: params.actorId ?? null,
             action: params.action,
             entity_type: params.entityType,
             entity_id: params.entityId ?? null,
             metadata: params.metadata ?? null,
-        })
-        .then(({ error }) => {
-            if (error) {
-                console.error("[activity-log] write failed", { action: params.action, error });
-            }
         });
+        if (error) {
+            console.error("[activity-log] write failed", { action: params.action, error });
+        }
+    });
 }

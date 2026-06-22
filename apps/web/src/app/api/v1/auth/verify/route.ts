@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { hashWalletAddress } from "@/lib/auth/siws";
+import { hashWalletAddress, parseAndValidateSIWSMessage } from "@/lib/auth/siws";
 import { verifyEd25519Signature } from "@/lib/auth/verify-signature";
+import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import {
     createSupabaseAdminClient,
@@ -59,9 +60,22 @@ export async function POST(request: Request): Promise<NextResponse> {
     const { wallet, signature, message, nonce } = parsed.data;
     const admin = createSupabaseAdminClient();
 
-    // 1. The signed message MUST embed the nonce we're consuming. Without this
-    //    binding, a valid signature over an unrelated message could be replayed.
-    if (!message.includes(nonce)) {
+    // 1. Validate the signed message body. A valid Ed25519 signature only proves
+    //    the wallet signed THIS text — not that the text authorizes a Canopy
+    //    sign-in. Bind the message to our domain (blocks cross-site signature
+    //    reuse), to this wallet (the signed address must match), and to the nonce
+    //    we're about to consume. Domain enforcement is prod-only (the dev/preview
+    //    host varies); the nonce + address checks always apply.
+    const appHost = new URL(env.NEXT_PUBLIC_APP_URL).host;
+    const messageCheck = parseAndValidateSIWSMessage({
+        message,
+        wallet,
+        nonce,
+        allowedDomains: [appHost],
+        skipDomainCheck: env.NODE_ENV !== "production",
+    });
+    if (!messageCheck.ok) {
+        log.warn({ reason: messageCheck.reason }, "SIWS message validation failed");
         return NextResponse.json(
             { error: { code: "INVALID_SIGNATURE", message: "Signature verification failed" } },
             { status: 401 },

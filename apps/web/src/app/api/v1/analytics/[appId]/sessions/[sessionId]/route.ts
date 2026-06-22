@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { apiError } from "@/lib/api/errors";
+import { DAY_MS, parseSince } from "@/lib/api/query";
 import { requireVerifiedPublisher } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -51,10 +52,9 @@ export async function GET(req: NextRequest, { params }: Params) {
         return apiError("INVALID_SESSION_ID", "session_id is required", 400);
     }
 
-    const sinceParam = req.nextUrl.searchParams.get("since");
-    const since = sinceParam
-        ? new Date(sinceParam).toISOString()
-        : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const sinceResult = parseSince(req, Date.now() - 90 * DAY_MS);
+    if (sinceResult instanceof NextResponse) return sinceResult;
+    const since = sinceResult;
 
     const supabase = createSupabaseAdminClient();
 

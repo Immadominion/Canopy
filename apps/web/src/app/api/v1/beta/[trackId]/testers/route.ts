@@ -140,8 +140,9 @@ export async function POST(request: Request, { params }: RouteParams): Promise<N
             .single();
 
         if (insertError || !tester) {
-            // We've already incremented the count — log + return error. (Compensating
-            // decrement would require another RPC; out of scope for this iteration.)
+            // Release the slot we reserved above so tester_count doesn't drift
+            // upward (which would trip the 200-cap early). Best-effort.
+            await admin.rpc("decrement_tester_count", { p_track_id: trackId });
             return apiError("DB_ERROR", "Failed to add tester", 500);
         }
 

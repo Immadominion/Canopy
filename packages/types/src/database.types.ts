@@ -544,6 +544,7 @@ export interface Database {
                     id: string; // uuid
                     org_id: string; // fk organizations.id
                     invited_email: string;
+                    invited_wallet_hash: string | null; // SHA-256(wallet) the invite is bound to
                     role: Exclude<OrgMemberRole, "owner">;
                     token: string; // secure random token — never log
                     invited_by: string; // fk publishers.id
@@ -555,6 +556,7 @@ export interface Database {
                     id?: string;
                     org_id: string;
                     invited_email: string;
+                    invited_wallet_hash?: string | null;
                     role: Exclude<OrgMemberRole, "owner">;
                     token: string;
                     invited_by: string;
@@ -605,6 +607,7 @@ export interface Database {
             remote_config_history: {
                 Row: {
                     id: string; // uuid
+                    seq: number; // monotonic identity — order by this for rollback
                     config_id: string; // fk remote_configs.id
                     previous_base_value: Json;
                     previous_conditions: RemoteConfigCondition[];
@@ -904,6 +907,10 @@ export interface Database {
                 Args: { p_track_id: string };
                 Returns: { new_count: number; over_cap: boolean }[];
             };
+            decrement_tester_count: {
+                Args: { p_track_id: string };
+                Returns: number;
+            };
             get_top_events: {
                 Args: { _app_id: string; _since: string; _limit?: number };
                 Returns: { event_name: string; event_count: number; pct: number }[];
@@ -935,6 +942,10 @@ export interface Database {
             delete_app_cascade: {
                 Args: { p_app_id: string };
                 Returns: { r2_key: string }[];
+            };
+            get_active_wallet_counts: {
+                Args: { _app_id: string; _now?: string };
+                Returns: { dau: number; wau: number; mau: number }[];
             };
         };
 

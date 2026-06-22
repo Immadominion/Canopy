@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { apiError } from "@/lib/api/errors";
+import { DAY_MS, parseDateRange } from "@/lib/api/query";
 import { requireVerifiedPublisher } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -22,7 +23,13 @@ async function verifyAppOwnership(
 
 function escapeCSVCell(value: unknown): string {
     if (value === null || value === undefined) return "";
-    const str = String(value);
+    let str = String(value);
+    // Neutralize spreadsheet formula injection: a leading =, +, -, @, tab or CR
+    // makes Excel/Sheets execute the cell (event names + JSONB properties are
+    // SDK/attacker-controlled). Prefix with a single quote to force text.
+    if (/^[=+\-@\t\r]/.test(str)) {
+        str = `'${str}`;
+    }
     // Wrap in double quotes if the value contains comma, newline, or double-quote
     if (str.includes(",") || str.includes("\n") || str.includes('"')) {
         return `"${str.replace(/"/g, '""')}"`;
@@ -55,14 +62,10 @@ export async function GET(
     const owned = await verifyAppOwnership(supabase, appId, auth.publisher.id);
     if (!owned) return apiError("NOT_FOUND", "App not found", 404);
 
-    const sinceParam = request.nextUrl.searchParams.get("since");
-    const untilParam = request.nextUrl.searchParams.get("until");
-
     // Default: last 7 days. Max range enforced implicitly by the 50k row cap.
-    const since = sinceParam
-        ? new Date(sinceParam).toISOString()
-        : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const until = untilParam ? new Date(untilParam).toISOString() : new Date().toISOString();
+    const range = parseDateRange(request, { defaultSinceMs: Date.now() - 7 * DAY_MS });
+    if (range instanceof NextResponse) return range;
+    const { since, until } = range;
 
     // Query analytics_events — always filter by time (TimescaleDB hypertable)
     const { data, error } = await supabase

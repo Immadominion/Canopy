@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 
+import { requireCronAuth } from "@/lib/api/cron-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -31,12 +32,9 @@ const cronLog = logger.child({ cron: "scan-recheck" });
  * Returns: { checked, passed, failed, pending, errors }
  */
 export async function GET(request: NextRequest): Promise<Response> {
-    if (env.NODE_ENV === "production") {
-        const authHeader = request.headers.get("authorization");
-        if (!env.CRON_SECRET || authHeader !== `Bearer ${env.CRON_SECRET}`) {
-            return new Response("Unauthorized", { status: 401 });
-        }
-    }
+    // Fail closed in every environment (consumes the limited VirusTotal quota).
+    const denied = requireCronAuth(request);
+    if (denied) return denied;
 
     const vtKey = env.VIRUSTOTAL_API_KEY;
     if (!vtKey) return Response.json({ skipped: "no_vt_key" });

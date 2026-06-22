@@ -44,12 +44,13 @@ export async function POST(_request: NextRequest, { params }: RouteParams): Prom
         return apiError("NOT_FOUND", "Remote config not found or access denied", 404);
     }
 
-    // Fetch latest history entry
+    // Fetch latest history entry. Order by the monotonic `seq`, not `created_at`
+    // — same-instant writes tie on created_at and could restore the wrong snapshot.
     const { data: history } = await admin
         .from("remote_config_history")
         .select("id, previous_base_value, previous_conditions, previous_enabled")
         .eq("config_id", configId)
-        .order("created_at", { ascending: false })
+        .order("seq", { ascending: false })
         .limit(1)
         .maybeSingle();
 

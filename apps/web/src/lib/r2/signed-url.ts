@@ -9,7 +9,9 @@ import { env } from "@/lib/env";
  * - A signed URL for wallet A MUST NOT work for wallet B (walletHash in payload).
  * - The R2 object key is NEVER exposed to the client — only the track UUID.
  *   The download endpoint resolves the key server-side from the track record.
- * - Validity is 15 minutes by default.
+ * - The download endpoint ALSO requires a session for the embedded wallet, so
+ *   the URL is wallet-scoped (non-transferable), not a bearer token.
+ * - Validity is 5 minutes — the client downloads immediately after issuance.
  */
 export interface SignedUrlPayload {
     trackId: string;
@@ -19,7 +21,7 @@ export interface SignedUrlPayload {
     nonce: string;
 }
 
-const SIGNED_URL_VALIDITY_MS = 15 * 60 * 1000; // 15 minutes
+const SIGNED_URL_VALIDITY_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Generates a wallet-bound signed URL pointing at our own download endpoint.

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { apiError } from "@/lib/api/errors";
+import { parseBoundedInt } from "@/lib/api/query";
 import { requireVerifiedPublisher } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -53,9 +54,12 @@ export async function GET(
     const owned = await resolveEndpointOwnership(supabase, endpointId, auth.publisher.id);
     if (!owned) return apiError("NOT_FOUND", "Webhook endpoint not found", 404);
 
-    const limitParam = request.nextUrl.searchParams.get("limit");
     const cursorParam = request.nextUrl.searchParams.get("cursor");
-    const limit = Math.min(limitParam ? parseInt(limitParam, 10) : 50, 100);
+    const limit = parseBoundedInt(request.nextUrl.searchParams.get("limit"), {
+        fallback: 50,
+        min: 1,
+        max: 100,
+    });
 
     let query = supabase
         .from("webhook_deliveries")

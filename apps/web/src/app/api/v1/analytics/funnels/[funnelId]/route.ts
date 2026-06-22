@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { FunnelStep } from "@canopy/types";
 
 import { apiError } from "@/lib/api/errors";
+import { DAY_MS, parseDateRange } from "@/lib/api/query";
 import { requireVerifiedPublisher } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -55,13 +56,9 @@ export async function GET(
     const funnel = await resolveFunnelOwnership(supabase, funnelId, auth.publisher.id);
     if (!funnel) return apiError("NOT_FOUND", "Funnel not found", 404);
 
-    const sinceParam = request.nextUrl.searchParams.get("since");
-    const untilParam = request.nextUrl.searchParams.get("until");
-
-    const since = sinceParam
-        ? new Date(sinceParam).toISOString()
-        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const until = untilParam ? new Date(untilParam).toISOString() : new Date().toISOString();
+    const range = parseDateRange(request, { defaultSinceMs: Date.now() - 30 * DAY_MS });
+    if (range instanceof NextResponse) return range;
+    const { since, until } = range;
 
     const steps = (funnel.steps as Array<{ event_name: string }>).map((s) => s.event_name);
 

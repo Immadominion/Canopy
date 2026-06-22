@@ -12,6 +12,7 @@ import { useState } from "react";
 export default function InvitePage() {
     const router = useRouter();
     const [email, setEmail] = useState("");
+    const [walletAddress, setWalletAddress] = useState("");
     const [role, setRole] = useState<"admin" | "developer" | "viewer">("developer");
     const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
     const [errorMsg, setErrorMsg] = useState("");
@@ -24,7 +25,7 @@ export default function InvitePage() {
         const res = await fetch("/api/v1/org/members", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, role }),
+            body: JSON.stringify({ email, walletAddress: walletAddress.trim(), role }),
         });
 
         if (res.ok) {
@@ -61,6 +62,25 @@ export default function InvitePage() {
                             placeholder="dev@example.com"
                             className="w-full bg-transparent border border-nd-border-visible px-3 py-2 font-mono text-sm text-nd-text-primary placeholder:text-nd-text-tertiary focus:outline-none focus:border-nd-text-secondary transition-colors"
                         />
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="font-mono text-[10px] uppercase tracking-[0.08em] text-nd-text-secondary block">
+                            Wallet address
+                        </label>
+                        <input
+                            type="text"
+                            required
+                            minLength={32}
+                            maxLength={44}
+                            value={walletAddress}
+                            onChange={(e) => { setWalletAddress(e.target.value); }}
+                            placeholder="Solana address the invite is bound to"
+                            className="w-full bg-transparent border border-nd-border-visible px-3 py-2 font-mono text-sm text-nd-text-primary placeholder:text-nd-text-tertiary focus:outline-none focus:border-nd-text-secondary transition-colors"
+                        />
+                        <p className="font-mono text-[10px] text-nd-text-tertiary">
+                            Only this wallet can accept the invite. The teammate signs in with it.
+                        </p>
                     </div>
 
                     <div className="space-y-2">

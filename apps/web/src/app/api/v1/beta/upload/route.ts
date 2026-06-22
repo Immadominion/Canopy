@@ -240,30 +240,37 @@ export async function POST(request: Request): Promise<NextResponse> {
     // fast-ACKs (transition → scan_in_progress) and does the slow VirusTotal work
     // in its own `after()`, so this await resolves quickly.
     const appUrl = env.NEXT_PUBLIC_APP_URL;
+    const cronSecret = env.CRON_SECRET;
     after(async () => {
         try {
-            await fetch(`${appUrl}/api/v1/beta/${track.id}/scan`, { method: "POST" });
+            await fetch(`${appUrl}/api/v1/beta/${track.id}/scan`, {
+                method: "POST",
+                // The scan route is internal — authenticate with CRON_SECRET.
+                headers: cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {},
+            });
         } catch (err: unknown) {
             log.error({ err, trackId: track.id }, "Failed to trigger malware scan");
         }
     });
 
-    // Fire-and-forget Arweave fingerprint — must not block the response (§11)
-    void writeTrackCreatedRecord({
-        trackId: track.id,
-        apkSha256: track.apk_sha256,
-        publisherWalletHash: auth.walletHash,
-        expiresAt: track.expires_at,
-    })
-        .then((txId) => {
-            void admin
-                .from("beta_tracks")
-                .update({ arweave_tx_id: txId })
-                .eq("id", track.id);
-        })
-        .catch(() => {
-            // Arweave write failures are non-fatal — track exists without a TX ID
-        });
+    // Arweave provenance fingerprint — write it AFTER the response via `after()`.
+    // An un-awaited `void` here (plus the chained DB update) was not guaranteed to
+    // run once the response returned: the request scope is torn down, so tracks
+    // non-deterministically ended up with no `arweave_tx_id`. Non-fatal — the
+    // track simply has no TX ID if Arweave is unavailable.
+    after(async () => {
+        try {
+            const txId = await writeTrackCreatedRecord({
+                trackId: track.id,
+                apkSha256: track.apk_sha256,
+                publisherWalletHash: auth.walletHash,
+                expiresAt: track.expires_at,
+            });
+            await admin.from("beta_tracks").update({ arweave_tx_id: txId }).eq("id", track.id);
+        } catch (err) {
+            log.error({ err, trackId: track.id }, "Failed to write Arweave fingerprint");
+        }
+    });
 
     return NextResponse.json(
         {

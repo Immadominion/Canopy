@@ -68,31 +68,29 @@ export async function GET(
 
     const typedRows = (rows ?? []) as SummaryRow[];
 
-    // Aggregate into DAU (last 1d), WAU (last 7d), MAU (last 30d)
-    const now = Date.now();
-    const oneDayAgo = now - 1 * 24 * 60 * 60 * 1000;
-    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    // DAU / WAU / MAU = COUNT(DISTINCT wallet_hash) per rolling window, computed
+    // in SQL from the raw hypertable. Summing the daily-distinct aggregate (the
+    // old approach) over-counted returning users — a wallet active N days was
+    // counted N times — so the headline metric was badly inflated.
+    const { data: counts, error: countsError } = await admin.rpc("get_active_wallet_counts", {
+        _app_id: appId,
+    });
 
-    // DAU = distinct wallets on the most recent day with data
-    const recentDay = typedRows
-        .filter((r) => new Date(r.bucket).getTime() >= oneDayAgo)
-        .reduce((acc, r) => acc + r.distinct_wallets, 0);
+    if (countsError) {
+        console.error("[analytics/summary] active-counts rpc failed", countsError);
+        return apiError("QUERY_FAILED", "Failed to load analytics summary", 500);
+    }
 
-    // WAU = distinct wallets in last 7 days (sum of daily distinct — approximate)
-    const recentWeek = typedRows
-        .filter((r) => new Date(r.bucket).getTime() >= sevenDaysAgo)
-        .reduce((acc, r) => acc + r.distinct_wallets, 0);
+    const activeCounts = counts?.[0] ?? { dau: 0, wau: 0, mau: 0 };
 
-    // MAU = distinct wallets in last 30 days (sum of all returned rows)
-    const recentMonth = typedRows.reduce((acc, r) => acc + r.distinct_wallets, 0);
-
+    // Total events IS additive — sum the daily aggregate (and feeds the sparkline).
     const totalEvents = typedRows.reduce((acc, r) => acc + r.event_count, 0);
 
     return NextResponse.json({
         data: {
-            dau: recentDay,
-            wau: recentWeek,
-            mau: recentMonth,
+            dau: activeCounts.dau,
+            wau: activeCounts.wau,
+            mau: activeCounts.mau,
             totalEvents,
             // Include daily series for sparklines
             series: typedRows.map((r) => ({

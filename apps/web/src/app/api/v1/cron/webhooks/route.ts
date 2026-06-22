@@ -18,8 +18,8 @@ import { createHmac } from "crypto";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { apiError } from "@/lib/api/errors";
+import { requireCronAuth } from "@/lib/api/cron-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { env } from "@/lib/env";
 
 // Exponential backoff delays (in seconds) per attempt number (1-indexed)
 const BACKOFF_SECONDS = [30, 120, 600, 1800, 7200]; // 30s, 2m, 10m, 30m, 2h
@@ -36,16 +36,11 @@ function nextAttemptAt(attempts: number): string {
     return new Date(Date.now() + delaySeconds * 1000).toISOString();
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
-    // Verify CRON_SECRET if set (required in production)
-    const cronSecret = env.CRON_SECRET;
-    if (cronSecret) {
-        const authHeader = request.headers.get("authorization");
-        const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-        if (token !== cronSecret) {
-            return apiError("UNAUTHORIZED", "Invalid cron secret", 401);
-        }
-    }
+export async function POST(request: NextRequest): Promise<Response> {
+    // Fail closed: require the cron secret. This route delivers signed webhooks
+    // using customer endpoints' signing secrets — it must never run open.
+    const denied = requireCronAuth(request);
+    if (denied) return denied;
 
     const supabase = createSupabaseAdminClient();
     const now = new Date().toISOString();

@@ -41,13 +41,24 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Look up the invite by token.
     const { data: invite } = await admin
         .from("org_invites")
-        .select("id, org_id, invited_email, role, expires_at, accepted_at")
+        .select("id, org_id, invited_email, invited_wallet_hash, role, expires_at, accepted_at")
         .eq("token", parsed.data.token)
         .maybeSingle();
 
     // Return 404 for any token issue — never reveal whether a token exists.
     if (!invite) {
         return apiError("INVITE_NOT_FOUND", "Invitation not found or has already been used", 404);
+    }
+
+    // Recipient binding: the invite is issued to a specific wallet. Only that
+    // wallet may redeem it — a leaked token is useless to anyone else. Invites
+    // without a bound wallet (legacy) can never be accepted and must be re-issued.
+    if (!invite.invited_wallet_hash || invite.invited_wallet_hash !== publisher.wallet_hash) {
+        return apiError(
+            "WALLET_MISMATCH",
+            "This invitation was issued to a different wallet. Connect the wallet it was sent to.",
+            403,
+        );
     }
 
     if (invite.accepted_at) {

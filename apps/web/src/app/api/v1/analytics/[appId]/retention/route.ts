@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { apiError } from "@/lib/api/errors";
+import { DAY_MS, parseBoundedInt, parseDateRange } from "@/lib/api/query";
 import { requireVerifiedPublisher } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -44,15 +45,14 @@ export async function GET(
     const owned = await verifyAppOwnership(supabase, appId, auth.publisher.id);
     if (!owned) return apiError("NOT_FOUND", "App not found", 404);
 
-    const sinceParam = request.nextUrl.searchParams.get("since");
-    const untilParam = request.nextUrl.searchParams.get("until");
-    const maxDaysParam = request.nextUrl.searchParams.get("maxDays");
-
-    const since = sinceParam
-        ? new Date(sinceParam).toISOString()
-        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const until = untilParam ? new Date(untilParam).toISOString() : new Date().toISOString();
-    const maxDays = maxDaysParam ? Math.min(parseInt(maxDaysParam, 10), 90) : 30;
+    const range = parseDateRange(request, { defaultSinceMs: Date.now() - 30 * DAY_MS });
+    if (range instanceof NextResponse) return range;
+    const { since, until } = range;
+    const maxDays = parseBoundedInt(request.nextUrl.searchParams.get("maxDays"), {
+        fallback: 30,
+        min: 1,
+        max: 90,
+    });
 
     const { data, error } = await supabase.rpc("get_retention", {
         _app_id: appId,

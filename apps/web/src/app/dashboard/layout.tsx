@@ -22,6 +22,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
     return (
         <div className="h-dvh overflow-hidden bg-nd-shell">
+            {/* Skip link — first focusable element, lets keyboard/SR users bypass
+                the sidebar nav and jump straight to the page content. */}
+            <a
+                href="#main"
+                className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded focus:bg-nd-black focus:px-4 focus:py-2 focus:font-mono focus:text-nd-label focus:uppercase focus:tracking-[0.08em] focus:text-nd-text-primary focus:outline focus:outline-2 focus:outline-nd-accent"
+            >
+                Skip to content
+            </a>
             <DashboardSidebar walletDisplay={walletDisplay} />
             {/* Content offset by the rail; the inner padding is the frame gap that
                 lets the dark-teal shell show around the floating panel. The panel
@@ -34,7 +42,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
                         className="nd-scroll h-full overflow-y-auto rounded-[28px] bg-nd-black border border-nd-border"
                     >
                         <ScrollReset />
-                        <main className="mx-auto w-full max-w-5xl px-nd-lg lg:px-nd-2xl py-nd-2xl">
+                        <main
+                            id="main"
+                            tabIndex={-1}
+                            className="mx-auto w-full max-w-5xl px-nd-lg lg:px-nd-2xl py-nd-2xl focus:outline-none"
+                        >
                             {children}
                         </main>
                     </div>

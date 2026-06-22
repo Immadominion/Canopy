@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import type { ExperimentVariant } from "@canopy/types";
 
 import { apiError } from "@/lib/api/errors";
+import { DAY_MS, parseDateRange } from "@/lib/api/query";
 import { requireVerifiedPublisher } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { computeExperimentResults } from "../route";
@@ -64,16 +65,11 @@ export async function GET(
 
     const variants = (variantsData ?? []) as ExperimentVariant[];
 
-    const sinceParam = request.nextUrl.searchParams.get("since");
-    const untilParam = request.nextUrl.searchParams.get("until");
-
-    const since = sinceParam
-        ? new Date(sinceParam).toISOString()
-        : exp.started_at
-            ? exp.started_at
-            : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-    const until = untilParam ? new Date(untilParam).toISOString() : new Date().toISOString();
+    // Default `since` is the experiment's start (or 30 days ago if it never started).
+    const defaultSinceMs = exp.started_at ? Date.parse(exp.started_at) : Date.now() - 30 * DAY_MS;
+    const range = parseDateRange(request, { defaultSinceMs });
+    if (range instanceof NextResponse) return range;
+    const { since, until } = range;
 
     const results = await computeExperimentResults(supabase, experimentId, variants, since, until);
 

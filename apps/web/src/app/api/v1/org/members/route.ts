@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { apiError } from "@/lib/api/errors";
+import { hashWalletAddress } from "@/lib/auth/siws";
 import { requireVerifiedPublisher } from "@/lib/auth/session";
 import { sendInviteEmail } from "@/lib/email/invite";
 import { env } from "@/lib/env";
@@ -13,6 +14,10 @@ const INVITABLE_ROLES = ["admin", "developer", "viewer"] as const;
 
 const inviteMemberSchema = z.object({
     email: z.string().trim().email(),
+    // The invitee's Solana wallet (base58). Invites are bound to this wallet:
+    // only it can redeem the token (see api/v1/org/invites/accept). Email is for
+    // notification delivery only — it is NOT a credential.
+    walletAddress: z.string().trim().min(32).max(44),
     role: z.enum(INVITABLE_ROLES),
 });
 
@@ -145,6 +150,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         .insert({
             org_id: org.id,
             invited_email: parsed.data.email,
+            invited_wallet_hash: hashWalletAddress(parsed.data.walletAddress),
             role: parsed.data.role,
             token,
             invited_by: auth.publisher.id,
