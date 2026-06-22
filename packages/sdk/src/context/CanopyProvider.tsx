@@ -27,7 +27,7 @@ import React, {
 import { AppState, Platform } from "react-native";
 import type { AppStateStatus } from "react-native";
 import type { CanopyConfig, CanopyEvent } from "@canopy/types";
-import { loadQueue, persistQueue, clearQueue } from "../queue";
+import { loadQueue, persistQueue } from "../queue";
 import { flushEvents } from "../flush";
 import { generateId } from "../id";
 
@@ -77,10 +77,16 @@ export function CanopyProvider({
     const flush = useCallback(async (): Promise<void> => {
         if (queueRef.current.length === 0) return;
         const toFlush = [...queueRef.current];
-        queueRef.current = [];
-        await clearQueue();
+        // Detach the in-flight events from the live queue, but KEEP them in
+        // persisted storage until the send succeeds. A prior version cleared
+        // storage before sending, so events were lost if the OS killed the app
+        // mid-flush (flush runs on backgrounding — a common kill point).
+        queueRef.current = queueRef.current.slice(toFlush.length);
         try {
             await flushEvents(toFlush, configRef.current);
+            // Sent: drop the flushed events from storage, keeping anything that
+            // was enqueued while the request was in flight.
+            await persistQueue(queueRef.current);
             if (configRef.current.debug === true) {
                 console.log("[Canopy] Flushed " + String(toFlush.length) + " events");
             }

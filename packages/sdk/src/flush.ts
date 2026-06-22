@@ -37,10 +37,21 @@ export async function flushEvents(
         });
 
         if (!response.ok) {
-            // Non-2xx: throw so caller can re-queue
-            throw new Error(
-                "Canopy ingest returned HTTP " + String(response.status),
-            );
+            // 429 (rate limited) and 5xx / network failures are transient —
+            // throw so the caller re-queues and retries. Other 4xx are client /
+            // data errors (bad API key, malformed or poison batch) that will
+            // NEVER succeed on retry — drop the batch to avoid an infinite retry
+            // loop that loses every subsequent event behind it.
+            const retryable = response.status === 429 || response.status >= 500;
+            if (!retryable) {
+                if (config.debug === true) {
+                    console.warn(
+                        "[Canopy] Dropping batch — ingest returned HTTP " + String(response.status),
+                    );
+                }
+                continue;
+            }
+            throw new Error("Canopy ingest returned HTTP " + String(response.status));
         }
     }
 }

@@ -1,9 +1,15 @@
 import type { IngestEvent } from "../types";
 
 /**
- * Deduplicates events by their client-generated UUID.
- * Event UUIDs are stored in KV with a 24-hour TTL.
- * Duplicate events (retried by SDK) are silently dropped.
+ * Partitions a batch into events we have NOT seen before (`accepted`) and
+ * duplicates we have (`rejected`), keyed by the client-generated event UUID
+ * stored in KV with a 24h TTL.
+ *
+ * This only READS the dedup markers. Markers are written by `markEventsSeen()`
+ * AFTER a successful DB write — never here, pre-write. Writing them before the
+ * write would permanently drop events on any transient DB failure: the SDK
+ * retries the same batch, the markers now say "seen", every event moves to
+ * `rejected`, and the data is lost forever.
  */
 export async function dedupEvents(
     events: IngestEvent[],
@@ -12,35 +18,37 @@ export async function dedupEvents(
     const accepted: IngestEvent[] = [];
     const rejected: string[] = [];
 
-    // Batch KV lookups in parallel (up to 200 events per batch)
-    const lookups = await Promise.allSettled(
+    const lookups = await Promise.all(
         events.map(async (event) => {
-            const key = `event:${event.id}`;
-            const existing = await dedupKv.get(key);
-            return { event, isDuplicate: existing !== null };
+            try {
+                const existing = await dedupKv.get(`event:${event.id}`);
+                return { event, isDuplicate: existing !== null };
+            } catch {
+                // KV read failed — we can't tell, so DON'T drop the event. Treat
+                // it as new; the DB's ON CONFLICT DO NOTHING is the final guard.
+                return { event, isDuplicate: false };
+            }
         }),
     );
 
-    // Process results and batch-write accepted event IDs to KV
-    const kvWrites: Promise<void>[] = [];
-
-    for (const result of lookups) {
-        if (result.status === "rejected") continue;
-        const { event, isDuplicate } = result.value;
-
+    for (const { event, isDuplicate } of lookups) {
         if (isDuplicate) {
             rejected.push(event.id);
         } else {
             accepted.push(event);
-            // Mark as seen — 24h TTL
-            kvWrites.push(
-                dedupKv.put(`event:${event.id}`, "1", { expirationTtl: 86400 }),
-            );
         }
     }
 
-    // Write dedup markers (fire and forget — don't block response)
-    void Promise.allSettled(kvWrites);
-
     return { accepted, rejected };
+}
+
+/**
+ * Marks events as seen (24h TTL) so future retries are deduped. Call this ONLY
+ * after the events are durably written, and prefer `executionCtx.waitUntil()` so
+ * the KV writes survive the response returning.
+ */
+export async function markEventsSeen(events: IngestEvent[], dedupKv: KVNamespace): Promise<void> {
+    await Promise.allSettled(
+        events.map((event) => dedupKv.put(`event:${event.id}`, "1", { expirationTtl: 86400 })),
+    );
 }

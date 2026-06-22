@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { Env, EventsBatchRequest } from "../types";
 import { validateApiKey } from "../middleware/api-key";
 import { checkRateLimit } from "../durable-objects/rate-limiter";
-import { dedupEvents } from "../middleware/dedup";
+import { dedupEvents, markEventsSeen } from "../middleware/dedup";
 import { withDb } from "../db/client";
 
 const eventsRouter = new Hono<{ Bindings: Env }>();
@@ -24,7 +24,10 @@ const eventSchema = z.object({
     isSeeker: z.boolean().optional(),
     hasGenesisToken: z.boolean().optional(),
     skrBalanceTier: z.enum(["none", "low", "medium", "high"]).optional(),
-    timestamp: z.number().int().positive(),
+    // Bound to the max representable JS Date (ms). An out-of-range value would
+    // throw RangeError at `new Date(...).toISOString()` and fail the WHOLE batch
+    // insert — one poison row dropping 199 good events into an infinite retry.
+    timestamp: z.number().int().positive().max(8_640_000_000_000_000),
 });
 
 const batchSchema = z.object({
@@ -91,11 +94,17 @@ eventsRouter.post("/", async (c) => {
         await writeEventsToSupabase(accepted, appId, c.env);
     } catch (err) {
         console.error("[ingest] Failed to write events:", err);
+        // Do NOT mark these events seen — let the SDK retry the batch.
         return c.json(
             { error: { code: "WRITE_FAILED", message: "Failed to persist events" } },
             500,
         );
     }
+
+    // 6. Only AFTER a durable write, record the dedup markers so SDK retries are
+    //    deduped. waitUntil keeps the KV writes alive past the response without
+    //    blocking it (and without the fire-and-forget data-loss risk of `void`).
+    c.executionCtx.waitUntil(markEventsSeen(accepted, c.env.EVENT_DEDUP_KV));
 
     return c.json({ accepted: accepted.length, rejected: rejected.length });
 });
