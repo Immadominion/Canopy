@@ -9,8 +9,8 @@ import { requireVerifiedPublisher } from "@/lib/auth/session";
 import { apiError } from "@/lib/api/errors";
 import { parseApkManifest } from "@/lib/apk/manifest";
 import { writeTrackCreatedRecord } from "@/lib/arweave/irys";
-import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
+import { claimAndScanTrack } from "@/lib/malware/run-track-scan";
 import {
     buildApkKey,
     copyApkInR2,
@@ -239,21 +239,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     // The canonical copy now exists — drop the staging object.
     cleanupStaging();
 
-    // Trigger the malware scan after the response. The scan endpoint is internal
-    // (CRON_SECRET-authed); it fast-ACKs and does the slow VirusTotal work in its
-    // own `after()`.
-    const appUrl = env.NEXT_PUBLIC_APP_URL;
-    const cronSecret = env.CRON_SECRET;
-    after(async () => {
-        try {
-            await fetch(`${appUrl}/api/v1/beta/${track.id}/scan`, {
-                method: "POST",
-                headers: cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {},
-            });
-        } catch (err: unknown) {
-            log.error({ err, trackId: track.id }, "Failed to trigger malware scan");
-        }
-    });
+    // Run the malware scan after the response — call the scan logic DIRECTLY (no
+    // fragile self-HTTP-fetch that could silently fail and leave the APK never
+    // submitted to VirusTotal). Hand over the APK buffer we already have so VT
+    // submission doesn't re-download from R2. claimAndScanTrack atomically claims
+    // the track, submits to VirusTotal, and settles the status; if VT isn't done
+    // within the function budget, the build page's poller / recheck cron settles
+    // it once the analysis completes.
+    after(() => claimAndScanTrack(admin, track.id, { apkBytes: apkBuffer }));
 
     // Arweave provenance fingerprint (non-fatal).
     after(async () => {

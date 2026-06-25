@@ -105,7 +105,7 @@ export default async function TrackDetailPage({ params }: PageProps) {
     return (
         <div className="max-w-3xl mx-auto">
             {/* Auto-refresh while the build is scanning so the status updates live. */}
-            <TrackStatusPoller status={track.status} />
+            <TrackStatusPoller trackId={track.id} status={track.status} />
             {/* ── Breadcrumb ── */}
             <div className="flex items-center gap-nd-sm mb-nd-xl flex-wrap">
                 <Link
