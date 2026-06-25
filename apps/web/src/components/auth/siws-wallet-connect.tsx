@@ -39,6 +39,22 @@ const WALLET_INSTALL_LINKS = [
 ] as const;
 
 // ---------------------------------------------------------------------------
+// "Last used" wallet — remembered in localStorage so a returning user (e.g.
+// after signing out) can one-tap reconnect the same wallet. Address only; it's
+// the user's own public key, never a secret.
+// ---------------------------------------------------------------------------
+const LAST_WALLET_KEY = "canopy.lastWallet.v1";
+
+interface LastWallet {
+    name: string;
+    address: string;
+}
+
+function truncateAddress(addr: string): string {
+    return addr.length > 8 ? `${addr.slice(0, 4)}…${addr.slice(-4)}` : addr;
+}
+
+// ---------------------------------------------------------------------------
 // Status labels — Nothing Design: inline text, no toast, no spinner.
 // ---------------------------------------------------------------------------
 type SignInStatus = "idle" | "connecting" | "signing" | "verifying" | "error";
@@ -71,6 +87,23 @@ export function SIWSWalletConnect() {
     const signingInFlight = useRef(false);
     // Guard against firing connect() more than once per selection.
     const connectInFlight = useRef(false);
+    // Track the selected wallet's name so we can remember it on success without
+    // adding `wallet` to the sign-in effect's dependency list.
+    const walletNameRef = useRef<string | null>(null);
+    walletNameRef.current = wallet?.adapter.name ?? null;
+
+    // The last wallet that successfully signed in — shown as a quick-reconnect
+    // badge. Read from localStorage after mount (client-only); it persists across
+    // sign-out so a returning user sees it.
+    const [lastUsed, setLastUsed] = useState<LastWallet | null>(null);
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(LAST_WALLET_KEY);
+            if (raw) setLastUsed(JSON.parse(raw) as LastWallet);
+        } catch {
+            // localStorage unavailable or malformed — ignore.
+        }
+    }, []);
 
     // Wallet detection is client-only: the server has no `window` and sees zero
     // installed wallets, while the client sees Phantom/Solflare. Rendering the
@@ -173,6 +206,18 @@ export function SIWSWalletConnect() {
                     return;
                 }
 
+                // Remember this wallet so the user can one-tap reconnect next time.
+                try {
+                    const name = walletNameRef.current;
+                    if (name) {
+                        const entry: LastWallet = { name, address: walletAddress };
+                        localStorage.setItem(LAST_WALLET_KEY, JSON.stringify(entry));
+                        setLastUsed(entry);
+                    }
+                } catch {
+                    // localStorage unavailable — non-fatal.
+                }
+
                 // Session cookie is set in the verify response — navigate to dashboard.
                 router.push("/dashboard/apps");
             } catch {
@@ -228,6 +273,16 @@ export function SIWSWalletConnect() {
 
     const label = statusLabel(status, errorCode);
 
+    // Quick-reconnect badge: only when idle/error, and drop the remembered wallet
+    // from the list below so it isn't shown twice.
+    const showLastUsed = !!lastUsed && (status === "idle" || status === "error");
+    const lastUsedAvailable =
+        !!lastUsed && availableWallets.some((w) => w.adapter.name === lastUsed.name);
+    const listWallets =
+        showLastUsed && lastUsed
+            ? availableWallets.filter((w) => w.adapter.name !== lastUsed.name)
+            : availableWallets;
+
     return (
         <div>
             {!mounted ? (
@@ -261,7 +316,28 @@ export function SIWSWalletConnect() {
                 </div>
             ) : (
                 <div className="space-y-nd-sm">
-                    {availableWallets.map((w) => (
+                    {showLastUsed && lastUsed && (
+                        <button
+                            type="button"
+                            onClick={() => handleWalletSelect(lastUsed.name as WalletName<string>)}
+                            disabled={!lastUsedAvailable}
+                            className="w-full flex items-center justify-between px-nd-md py-nd-md border border-nd-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed group text-left"
+                            aria-label={`Continue with ${lastUsed.name}, your last used wallet ${truncateAddress(lastUsed.address)}`}
+                        >
+                            <span className="flex flex-col gap-0.5">
+                                <span className="font-mono text-nd-caption text-nd-accent uppercase tracking-[0.08em]">
+                                    Last used
+                                </span>
+                                <span className="font-mono text-nd-label text-nd-text-primary uppercase tracking-[0.08em]">
+                                    {lastUsed.name}
+                                </span>
+                            </span>
+                            <span className="font-mono text-nd-label text-nd-text-secondary group-hover:text-nd-accent transition-colors">
+                                {truncateAddress(lastUsed.address)}
+                            </span>
+                        </button>
+                    )}
+                    {listWallets.map((w) => (
                         <button
                             key={w.adapter.name}
                             onClick={() => handleWalletSelect(w.adapter.name as WalletName<string>)}
