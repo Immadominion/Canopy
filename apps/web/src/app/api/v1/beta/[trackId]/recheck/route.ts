@@ -7,6 +7,7 @@ import { notFound } from "@/lib/api/errors";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { recheckByHash } from "@/lib/malware/virustotal";
+import { rateLimit } from "@/lib/rate-limit";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -51,6 +52,19 @@ export async function POST(_request: Request, { params }: RouteParams): Promise<
     const vtKey = env.VIRUSTOTAL_API_KEY;
     if (!vtKey) {
         return NextResponse.json({ status: track.status, ready: false, reason: "no_vt_key" });
+    }
+
+    // Bound per-publisher recheck volume: each recheck hits VirusTotal's shared
+    // daily quota, so an authenticated publisher must not be able to drain it in a
+    // scripted loop (a DoS on everyone's scans). Best-effort in-memory speed bump,
+    // comfortably above the build page poller's ~3/min. Only reached for tracks
+    // still scanning, i.e. calls that actually consume VT quota.
+    const rl = rateLimit(`recheck:${auth.publisher.id}`, 12, 60_000);
+    if (!rl.allowed) {
+        return NextResponse.json(
+            { status: track.status, ready: false, reason: "rate_limited" },
+            { status: 429, headers: { "Retry-After": rl.retryAfterSeconds.toString() } },
+        );
     }
 
     const result = await recheckByHash(track.apk_sha256, vtKey);
