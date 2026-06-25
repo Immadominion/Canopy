@@ -51,6 +51,18 @@ export function buildSIWSMessage({
     return lines.join("\n");
 }
 
+/**
+ * The registrable domain (≈ eTLD+1) of a host: the last two dot-separated
+ * labels, with any port stripped. `www.trycanopy.xyz`, `trycanopy.xyz`, and
+ * `app.trycanopy.xyz` all yield `trycanopy.xyz`. A simple heuristic — correct
+ * for single-segment TLDs (.xyz, .com); not multi-part ones (.co.uk).
+ */
+function registrableDomain(host: string): string {
+    const h = (host.split(":")[0] ?? host).toLowerCase();
+    const labels = h.split(".");
+    return labels.length <= 2 ? h : labels.slice(-2).join(".");
+}
+
 export type SIWSValidationResult =
     | { ok: true }
     | { ok: false; reason: "MALFORMED" | "DOMAIN" | "ADDRESS" | "NONCE" | "EXPIRED" };
@@ -107,7 +119,15 @@ export function parseAndValidateSIWSMessage(params: {
 
     if (!domain || !address || !messageNonce) return { ok: false, reason: "MALFORMED" };
 
-    if (!skipDomainCheck && !allowedDomains.includes(domain)) return { ok: false, reason: "DOMAIN" };
+    if (!skipDomainCheck) {
+        // Match on the registrable domain so the www, apex, and app subdomains of
+        // our own site all pass (the client signs window.location.host, which
+        // varies) while a phishing domain still fails.
+        const signedReg = registrableDomain(domain);
+        if (!allowedDomains.some((d) => registrableDomain(d) === signedReg)) {
+            return { ok: false, reason: "DOMAIN" };
+        }
+    }
     if (address !== wallet) return { ok: false, reason: "ADDRESS" };
     if (messageNonce !== nonce) return { ok: false, reason: "NONCE" };
 
