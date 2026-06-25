@@ -1,0 +1,5 @@
+# This package is a GitHub Action. Its bundled output MUST be committed so the
+# action runs without a build step on the runner — override the repo-root
+# `dist/` ignore for this package only.
+!dist/
+!dist/**
