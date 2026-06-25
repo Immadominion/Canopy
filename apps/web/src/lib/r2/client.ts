@@ -1,9 +1,12 @@
 import {
+    CopyObjectCommand,
     DeleteObjectCommand,
     GetObjectCommand,
+    HeadObjectCommand,
     PutObjectCommand,
     S3Client,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import { env } from "@/lib/env";
 
@@ -114,6 +117,57 @@ export async function deleteApkFromR2(key: string): Promise<void> {
         new DeleteObjectCommand({
             Bucket: env.R2_BUCKET_NAME,
             Key: key,
+        }),
+    );
+}
+
+/** Seconds a presigned upload URL stays valid. */
+const UPLOAD_URL_TTL_SECONDS = 15 * 60;
+
+/**
+ * Presign a direct-to-R2 PUT URL so the browser can upload an APK straight to
+ * storage, bypassing the serverless function's ~4.5MB request-body limit. No
+ * Content-Type is bound, so the client may send the bytes with any/none. The
+ * upload key MUST be publisher-scoped (the finalize route enforces this).
+ */
+export async function presignApkUpload(key: string): Promise<string> {
+    const client = getR2Client();
+    return getSignedUrl(
+        client,
+        new PutObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: key }),
+        { expiresIn: UPLOAD_URL_TTL_SECONDS },
+    );
+}
+
+/** HEAD an R2 object — returns its size + content type, or null if absent. */
+export async function statApkInR2(
+    key: string,
+): Promise<{ size: number; contentType: string | undefined } | null> {
+    const client = getR2Client();
+    try {
+        const r = await client.send(
+            new HeadObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: key }),
+        );
+        return { size: r.ContentLength ?? 0, contentType: r.ContentType };
+    } catch {
+        return null;
+    }
+}
+
+/** Server-side copy within R2 (no data flows through the serverless function). */
+export async function copyApkInR2(params: {
+    fromKey: string;
+    toKey: string;
+    contentType?: string;
+}): Promise<void> {
+    const client = getR2Client();
+    await client.send(
+        new CopyObjectCommand({
+            Bucket: env.R2_BUCKET_NAME,
+            CopySource: `${env.R2_BUCKET_NAME}/${params.fromKey}`,
+            Key: params.toKey,
+            ContentType: params.contentType ?? "application/vnd.android.package-archive",
+            MetadataDirective: "REPLACE",
         }),
     );
 }

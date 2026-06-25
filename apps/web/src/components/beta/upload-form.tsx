@@ -83,7 +83,40 @@ export function UploadForm({ appId }: Props) {
         if (fileRef.current) fileRef.current.value = "";
     }
 
-    function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    // Step 3 — finalize: the server pulls the uploaded object back from R2,
+    // validates + hashes it, and creates the track.
+    async function finalizeUpload(uploadKey: string, days: number, vcTyped: string) {
+        try {
+            const res = await fetch("/api/v1/beta/upload/finalize", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    appId,
+                    uploadKey,
+                    versionName: versionName.trim() || undefined,
+                    versionCode: vcTyped || undefined,
+                    expiresInDays: days,
+                    releaseNotes: releaseNotes.trim() || undefined,
+                }),
+            });
+            xhrRef.current = null;
+            const data = (await res.json().catch(() => ({}))) as {
+                trackId?: string;
+                error?: { code?: string };
+            };
+            if (res.ok && data.trackId) {
+                router.push(`/dashboard/apps/${appId}/tracks/${data.trackId}`);
+            } else {
+                setErrorCode(data.error?.code ?? `FINALIZE_HTTP_${String(res.status)}`);
+                setStage("error");
+            }
+        } catch {
+            setErrorCode("FINALIZE_FAILED");
+            setStage("error");
+        }
+    }
+
+    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         setErrorCode("");
 
@@ -108,25 +141,42 @@ export function UploadForm({ appId }: Props) {
             return;
         }
 
-        const form = new FormData();
-        form.append("apk", file);
-        form.append("appId", appId);
-        if (versionName.trim()) form.append("versionName", versionName.trim());
-        if (vcTyped) form.append("versionCode", vcTyped);
-        form.append("expiresInDays", String(days));
-        if (releaseNotes.trim()) form.append("releaseNotes", releaseNotes.trim());
+        setStage("uploading");
+        setProgress({ loaded: 0, total: file.size, pct: 0, bytesPerSec: 0, etaSec: Infinity });
 
-        // XHR (not fetch) so we get real upload-progress events.
+        // Step 1 — initiate: get a presigned URL to PUT the APK straight to R2,
+        // so the bytes never pass through the function (no ~4.5MB body limit).
+        let uploadUrl: string;
+        let uploadKey: string;
+        try {
+            const res = await fetch("/api/v1/beta/upload/initiate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ appId, size: file.size }),
+            });
+            if (!res.ok) {
+                const d = (await res.json().catch(() => ({}))) as { error?: { code?: string } };
+                setErrorCode(d.error?.code ?? `HTTP_${String(res.status)}`);
+                setStage("error");
+                return;
+            }
+            const d = (await res.json()) as { uploadUrl: string; uploadKey: string };
+            uploadUrl = d.uploadUrl;
+            uploadKey = d.uploadKey;
+        } catch {
+            setErrorCode("INITIATE_FAILED");
+            setStage("error");
+            return;
+        }
+
+        // Step 2 — PUT the bytes straight to R2, with real progress (XHR).
         const xhr = new XMLHttpRequest();
         xhrRef.current = xhr;
         speedRef.current = 0;
         let lastLoaded = 0;
         let lastTime = Date.now();
 
-        setStage("uploading");
-        setProgress({ loaded: 0, total: file.size, pct: 0, bytesPerSec: 0, etaSec: Infinity });
-
-        xhr.open("POST", "/api/v1/beta/upload");
+        xhr.open("PUT", uploadUrl);
 
         xhr.upload.onprogress = (ev) => {
             if (!ev.lengthComputable) return;
@@ -148,28 +198,17 @@ export function UploadForm({ appId }: Props) {
             });
         };
 
-        // Bytes fully sent — server is now hashing + storing + kicking off the scan.
+        // Bytes fully sent — the server now validates + records the build.
         xhr.upload.onload = () => setStage("finalizing");
 
         xhr.onload = () => {
-            xhrRef.current = null;
-            if (xhr.status >= 200 && xhr.status < 300) {
-                try {
-                    const data = JSON.parse(xhr.responseText) as { trackId: string };
-                    router.push(`/dashboard/apps/${appId}/tracks/${data.trackId}`);
-                } catch {
-                    setErrorCode("BAD_RESPONSE");
-                    setStage("error");
-                }
+            if (xhr.status < 200 || xhr.status >= 300) {
+                xhrRef.current = null;
+                setErrorCode(`UPLOAD_HTTP_${String(xhr.status)}`);
+                setStage("error");
                 return;
             }
-            try {
-                const data = JSON.parse(xhr.responseText) as { error?: { code?: string } };
-                setErrorCode(data.error?.code ?? "UPLOAD_FAILED");
-            } catch {
-                setErrorCode(`HTTP_${xhr.status}`);
-            }
-            setStage("error");
+            void finalizeUpload(uploadKey, days, vcTyped);
         };
 
         xhr.onerror = () => {
@@ -183,7 +222,7 @@ export function UploadForm({ appId }: Props) {
             setStage("idle");
         };
 
-        xhr.send(form);
+        xhr.send(file);
     }
 
     function cancelUpload() {
@@ -191,7 +230,7 @@ export function UploadForm({ appId }: Props) {
     }
 
     return (
-        <form onSubmit={handleSubmit} className="max-w-xl">
+        <form onSubmit={(e) => { void handleSubmit(e); }} className="max-w-xl">
             {/* ── Dropzone ── */}
             <div className="mb-nd-xl">
                 <span className="field-label">APK file</span>
