@@ -31,8 +31,12 @@ function getR2Client(): S3Client {
             accessKeyId: env.R2_ACCESS_KEY_ID,
             secretAccessKey: env.R2_SECRET_ACCESS_KEY,
         },
-        // R2 ignores checksum headers; explicit empty headers reduce noise
         forcePathStyle: false,
+        // The SDK adds a CRC32 checksum to PutObject by default. On a PRESIGNED
+        // PUT the body is supplied later by the browser, so a pre-baked checksum
+        // (computed over an empty body at presign time) would mismatch and the
+        // store could reject the upload. Only add a checksum when required.
+        requestChecksumCalculation: "WHEN_REQUIRED",
     });
     return cachedClient;
 }
