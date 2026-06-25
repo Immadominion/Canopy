@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { hashWalletAddress, parseAndValidateSIWSMessage } from "@/lib/auth/siws";
+import { buildAllowedSiwsDomains, hashWalletAddress, parseAndValidateSIWSMessage } from "@/lib/auth/siws";
 import { verifyEd25519Signature } from "@/lib/auth/verify-signature";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -66,12 +66,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     //    reuse), to this wallet (the signed address must match), and to the nonce
     //    we're about to consume. Domain enforcement is prod-only (the dev/preview
     //    host varies); the nonce + address checks always apply.
-    const appHost = new URL(env.NEXT_PUBLIC_APP_URL).host;
-    // Enforce the signed domain only on the REAL production deployment, where
-    // window.location.host == NEXT_PUBLIC_APP_URL host. On Vercel preview deploys
-    // (VERCEL_ENV="preview") and local dev the host differs, so enforcing there
-    // would break sign-in for no security gain — previews aren't the phishing
-    // target, production is. Fall back to NODE_ENV when not on Vercel.
+    // Explicit, anchored allowlist of the hosts we serve sign-in from: the app
+    // host + its apex + www, plus any SIWS_ALLOWED_DOMAINS overrides.
+    const allowedDomains = buildAllowedSiwsDomains(
+        new URL(env.NEXT_PUBLIC_APP_URL).host,
+        env.SIWS_ALLOWED_DOMAINS,
+    );
+    // Enforce the signed domain only on the REAL production deployment. On Vercel
+    // preview deploys (VERCEL_ENV="preview") and local dev the host differs, so
+    // enforcing there would break sign-in for no security gain — previews aren't
+    // the phishing target, production is. Fall back to NODE_ENV when not on Vercel.
     const isRealProd = env.VERCEL_ENV
         ? env.VERCEL_ENV === "production"
         : env.NODE_ENV === "production";
@@ -79,7 +83,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         message,
         wallet,
         nonce,
-        allowedDomains: [appHost],
+        allowedDomains,
         skipDomainCheck: !isRealProd,
     });
     if (!messageCheck.ok) {

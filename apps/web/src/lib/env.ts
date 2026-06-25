@@ -41,6 +41,9 @@ const serverEnvSchema = z.object({
     // Used to enforce the SIWS sign-in domain ONLY on the real production
     // deployment (preview deploys serve from a different *.vercel.app host).
     VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
+    // Optional comma-separated extra hosts allowed as the SIWS sign-in domain,
+    // beyond NEXT_PUBLIC_APP_URL's host + its apex/www. Exact hosts, no wildcards.
+    SIWS_ALLOWED_DOMAINS: z.string().optional(),
 
     // Cron security — Vercel sends this as Bearer token when invoking cron routes
     // Optional so local dev works without it; the route still enforces in production.

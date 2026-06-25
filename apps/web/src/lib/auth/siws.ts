@@ -51,16 +51,40 @@ export function buildSIWSMessage({
     return lines.join("\n");
 }
 
+/** Normalize a host for exact comparison: lowercase, strip any port. */
+function normalizeHost(host: string): string {
+    return (host.split(":")[0] ?? host).toLowerCase();
+}
+
 /**
- * The registrable domain (≈ eTLD+1) of a host: the last two dot-separated
- * labels, with any port stripped. `www.trycanopy.xyz`, `trycanopy.xyz`, and
- * `app.trycanopy.xyz` all yield `trycanopy.xyz`. A simple heuristic — correct
- * for single-segment TLDs (.xyz, .com); not multi-part ones (.co.uk).
+ * The registrable domain (≈ eTLD+1) of a host — the last two dot-separated
+ * labels. Used ONLY to derive allowlist entries (apex + www), never to match.
+ * Heuristic: correct for single-segment TLDs (.xyz, .com), not multi-part (.co.uk).
  */
 function registrableDomain(host: string): string {
-    const h = (host.split(":")[0] ?? host).toLowerCase();
-    const labels = h.split(".");
-    return labels.length <= 2 ? h : labels.slice(-2).join(".");
+    const labels = normalizeHost(host).split(".");
+    return labels.length <= 2 ? labels.join(".") : labels.slice(-2).join(".");
+}
+
+/**
+ * Build the EXPLICIT, anchored set of hosts a SIWS message may be signed for:
+ * the configured app host, the registrable apex, and `www.<apex>` (so a
+ * www<->apex split never breaks sign-in), plus any comma-separated overrides in
+ * SIWS_ALLOWED_DOMAINS. These are EXACT hosts — there is no subdomain wildcard,
+ * so an arbitrary `*.ourdomain` (e.g. a dangling-subdomain takeover) is rejected.
+ */
+export function buildAllowedSiwsDomains(appHost: string, extra?: string): string[] {
+    const out = new Set<string>();
+    const add = (h: string) => {
+        const n = normalizeHost(h);
+        if (n) out.add(n);
+    };
+    add(appHost);
+    const apex = registrableDomain(appHost);
+    add(apex);
+    add(`www.${apex}`);
+    for (const d of (extra ?? "").split(",")) add(d.trim());
+    return [...out];
 }
 
 export type SIWSValidationResult =
@@ -120,11 +144,12 @@ export function parseAndValidateSIWSMessage(params: {
     if (!domain || !address || !messageNonce) return { ok: false, reason: "MALFORMED" };
 
     if (!skipDomainCheck) {
-        // Match on the registrable domain so the www, apex, and app subdomains of
-        // our own site all pass (the client signs window.location.host, which
-        // varies) while a phishing domain still fails.
-        const signedReg = registrableDomain(domain);
-        if (!allowedDomains.some((d) => registrableDomain(d) === signedReg)) {
+        // EXACT host match against the explicit allowlist (anchored — no substring
+        // and no subdomain wildcard). The signed window.location.host must be one
+        // of the specific hosts we serve; phishing domains and arbitrary
+        // subdomains of our own domain are both rejected.
+        const signed = normalizeHost(domain);
+        if (!allowedDomains.some((d) => normalizeHost(d) === signed)) {
             return { ok: false, reason: "DOMAIN" };
         }
     }
