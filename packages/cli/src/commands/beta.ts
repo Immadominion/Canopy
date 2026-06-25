@@ -21,8 +21,19 @@ interface BetaTrack {
     release_notes?: string;
 }
 
-interface CreateTrackResponse {
-    data: BetaTrack;
+interface InitiateResponse {
+    uploadUrl: string;
+    uploadKey: string;
+}
+
+interface FinalizeResponse {
+    trackId: string;
+    status: string;
+    expiresAt: string;
+    apkSha256: string;
+    apkSizeBytes: number;
+    versionName: string;
+    versionCode: number;
 }
 
 interface ListTracksResponse {
@@ -95,39 +106,50 @@ export function registerBetaCommand(program: Command): void {
 
                 try {
                     const api = createApiClient(config);
-                    const form = new FormData();
-
-                    // Node 24 supports FormData natively but doesn't handle ReadStream —
-                    // read the file as a Blob for the upload
                     const fileBuffer = await readFileAsBuffer(opts.apk);
-                    const blob = new Blob([fileBuffer], {
-                        type: "application/vnd.android.package-archive",
+
+                    // 1) Initiate — get a presigned direct-to-R2 URL. This bypasses the
+                    //    serverless request-body limit (~4.5MB) that the old multipart
+                    //    POST hit for any real APK.
+                    const init = await api.post<InitiateResponse>("/beta/upload/initiate", {
+                        appId: opts.app,
+                        size: apkStat.size,
                     });
-                    form.append("apk", blob, basename(opts.apk));
-                    form.append("appId", opts.app);
-                    form.append("versionName", opts.versionName);
-                    form.append("versionCode", opts.versionCode.toString());
-                    form.append("expiresInDays", opts.expiresIn.toString());
-                    if (opts.notes) {
-                        form.append("releaseNotes", opts.notes);
+
+                    // 2) PUT the APK straight to R2 (no size limit; not authed — the
+                    //    presigned URL is the credential).
+                    spinner.text = "Uploading to storage…";
+                    const putRes = await fetch(init.uploadUrl, {
+                        method: "PUT",
+                        body: fileBuffer,
+                    });
+                    if (!putRes.ok) {
+                        throw new CanopyApiError(putRes.status, {
+                            code: "STORAGE_UPLOAD_FAILED",
+                            message: `Upload to storage failed (HTTP ${putRes.status.toString()})`,
+                        });
                     }
 
+                    // 3) Finalize — the server validates the uploaded object and creates
+                    //    the track.
                     spinner.text = "Creating beta track…";
-                    const result = await api.postForm<CreateTrackResponse>(
-                        "/beta/upload",
-                        form,
-                    );
-                    const track = result.data;
+                    const track = await api.post<FinalizeResponse>("/beta/upload/finalize", {
+                        appId: opts.app,
+                        uploadKey: init.uploadKey,
+                        versionName: opts.versionName,
+                        versionCode: opts.versionCode,
+                        expiresInDays: opts.expiresIn,
+                        ...(opts.notes ? { releaseNotes: opts.notes } : {}),
+                    });
 
                     spinner.succeed("Beta track created.");
                     header("Beta Track");
                     table([
-                        ["TRACK ID", track.id],
-                        ["APP ID", track.app_id],
-                        ["VERSION", `${track.version_name} (${track.version_code.toString()})`],
+                        ["TRACK ID", track.trackId],
+                        ["APP ID", opts.app],
+                        ["VERSION", `${track.versionName} (${track.versionCode.toString()})`],
                         ["STATUS", track.status],
-                        ["TESTERS", `${track.tester_count.toString()} / ${track.tester_cap.toString()}`],
-                        ["EXPIRES", new Date(track.expires_at).toLocaleString()],
+                        ["EXPIRES", new Date(track.expiresAt).toLocaleString()],
                     ]);
                     console.log();
                     info("Track is pending malware scan. It activates automatically once clear.");
