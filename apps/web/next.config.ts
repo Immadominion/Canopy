@@ -23,7 +23,10 @@ const nextConfig: NextConfig = {
                             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
                             "font-src 'self' https://fonts.gstatic.com",
                             "img-src 'self' data: blob:",
-                            "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://mainnet.helius-rpc.com https://sentry.io https://*.sentry.io",
+                            // R2 (*.r2.cloudflarestorage.com) is needed for the browser's
+                            // direct-to-R2 presigned APK upload (PUT). Wildcard avoids
+                            // hardcoding the R2 account id in this public repo.
+                            "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://mainnet.helius-rpc.com https://sentry.io https://*.sentry.io https://*.r2.cloudflarestorage.com",
                             "frame-ancestors 'none'",
                         ].join("; "),
                     },
