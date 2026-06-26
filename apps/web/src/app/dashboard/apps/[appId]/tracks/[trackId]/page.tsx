@@ -41,6 +41,20 @@ function trackStatusStyle(status: string): StatusStyle {
     }
 }
 
+// Roster: rank install_events so each tester resolves to the furthest stage reached.
+const ACTION_RANK: Record<string, number> = {
+    url_generated: 1,
+    download_started: 2,
+    install_confirmed: 3,
+};
+
+/** Per-tester lifecycle label derived from the highest install_event reached. */
+function rosterStatus(rank: number): { label: string; className: string } {
+    if (rank >= 3) return { label: "INSTALLED", className: "text-nd-text-display" };
+    if (rank >= 2) return { label: "DOWNLOADED", className: "text-nd-text-secondary" };
+    return { label: "INVITED", className: "text-nd-text-disabled" };
+}
+
 function formatBytes(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
     const kb = bytes / 1024;
@@ -130,6 +144,29 @@ export default async function TrackDetailPage({ params }: PageProps) {
     const canAddTesters =
         track.status === "active" && !isExpired && track.tester_count < track.tester_cap;
 
+    // Per-tester roster: derive Invited → Downloaded → Installed + last-seen from
+    // install_events (no extra schema — the action enum already carries all three).
+    const { data: installEvents } = await admin
+        .from("install_events")
+        .select("wallet_hash, action, created_at")
+        .eq("track_id", track.id);
+
+    const activityByWallet = new Map<string, { rank: number; lastSeen: string }>();
+    for (const e of installEvents ?? []) {
+        const prev = activityByWallet.get(e.wallet_hash);
+        const r = ACTION_RANK[e.action] ?? 0;
+        activityByWallet.set(e.wallet_hash, {
+            rank: Math.max(prev?.rank ?? 0, r),
+            lastSeen: !prev || e.created_at > prev.lastSeen ? e.created_at : prev.lastSeen,
+        });
+    }
+    const roster = testerList.map((t) => {
+        const activity = activityByWallet.get(t.wallet_hash);
+        return { ...t, rank: activity?.rank ?? 0, lastSeen: activity?.lastSeen ?? null };
+    });
+    const installedCount = roster.filter((r) => r.rank >= 3).length;
+    const downloadedCount = roster.filter((r) => r.rank === 2).length;
+
     return (
         <div className="max-w-3xl mx-auto">
             {/* Auto-refresh while the build is scanning so the status updates live. */}
@@ -218,33 +255,56 @@ export default async function TrackDetailPage({ params }: PageProps) {
                     canAdd={canAddTesters}
                 />
 
-                {/* Tester list */}
-                {testerList.length > 0 && (
+                {/* Roster — invited → downloaded → installed, derived from install_events */}
+                {roster.length > 0 && (
                     <div className="mt-nd-xl border-t border-nd-border">
-                        <div className="grid grid-cols-[1fr_auto] gap-nd-xl py-nd-sm border-b border-nd-border">
+                        {/* Funnel summary */}
+                        <div className="flex flex-wrap gap-nd-xl py-nd-md border-b border-nd-border">
+                            <span className="font-mono text-nd-caption text-nd-text-secondary">
+                                {roster.length} {roster.length === 1 ? "TESTER" : "TESTERS"}
+                            </span>
+                            <span className="font-mono text-nd-caption text-nd-text-display">
+                                {installedCount} INSTALLED
+                            </span>
+                            <span className="font-mono text-nd-caption text-nd-text-disabled">
+                                {downloadedCount} DOWNLOADING
+                            </span>
+                        </div>
+                        {/* Header */}
+                        <div className="grid grid-cols-[1fr_auto_auto] gap-nd-lg py-nd-sm border-b border-nd-border">
                             <span className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em]">
                                 WALLET HASH
                             </span>
                             <span className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] text-right">
-                                ADDED
+                                STATUS
+                            </span>
+                            <span className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] text-right">
+                                LAST SEEN
                             </span>
                         </div>
-                        {testerList.map((tester) => (
-                            <div
-                                key={tester.id}
-                                className="grid grid-cols-[1fr_auto] gap-nd-xl py-nd-md border-b border-nd-border items-center"
-                            >
-                                <p className="font-mono text-nd-caption text-nd-text-secondary tracking-[0.04em]">
-                                    {tester.wallet_hash.slice(0, 12)}…{tester.wallet_hash.slice(-8)}
-                                </p>
-                                <p className="font-mono text-nd-caption text-nd-text-disabled tracking-[0.04em]">
-                                    {new Date(tester.created_at).toLocaleDateString("en-US", {
-                                        month: "short",
-                                        day: "numeric",
-                                    }).toUpperCase()}
-                                </p>
-                            </div>
-                        ))}
+                        {roster.map((tester) => {
+                            const rs = rosterStatus(tester.rank);
+                            return (
+                                <div
+                                    key={tester.id}
+                                    className="grid grid-cols-[1fr_auto_auto] gap-nd-lg py-nd-md border-b border-nd-border items-center"
+                                >
+                                    <p className="font-mono text-nd-caption text-nd-text-secondary tracking-[0.04em] truncate">
+                                        {tester.wallet_hash.slice(0, 12)}…{tester.wallet_hash.slice(-8)}
+                                    </p>
+                                    <p
+                                        className={`font-mono text-nd-label uppercase tracking-[0.08em] text-right ${rs.className}`}
+                                    >
+                                        {rs.label}
+                                    </p>
+                                    <p className="font-mono text-nd-caption text-nd-text-disabled tracking-[0.04em] text-right">
+                                        {new Date(tester.lastSeen ?? tester.created_at)
+                                            .toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                                            .toUpperCase()}
+                                    </p>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>

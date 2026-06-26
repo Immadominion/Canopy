@@ -11,7 +11,7 @@
  */
 import * as FileSystem from "expo-file-system";
 
-import { initiateInstall, type BetaSummary } from "./api";
+import { confirmInstall, initiateInstall, type BetaSummary } from "./api";
 import { getValidAccessToken } from "./session";
 import { installer } from "../native/installer";
 
@@ -160,6 +160,11 @@ export async function downloadVerifyInstall(
                 hint,
             };
         }
+
+        // Tell the backend this wallet actually installed (best-effort; powers
+        // the publisher's per-tester roster). Fire-and-forget — never block the
+        // success state on it.
+        void confirmInstall(beta.trackId);
 
         onStep?.("done");
         return { ok: true, step: "done" };

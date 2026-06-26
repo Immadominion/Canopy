@@ -50,3 +50,20 @@ export async function initiateInstall(trackId: string): Promise<InstallTicket> {
     }
     return (await res.json()) as InstallTicket;
 }
+
+/**
+ * Report a successful on-device install (best-effort). Lets the publisher see
+ * who actually installed (the roster's Installed state). Never throws — the
+ * install has already succeeded by the time this is called.
+ */
+export async function confirmInstall(trackId: string): Promise<void> {
+    try {
+        await authedFetch("/api/v1/beta/install/confirm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ trackId }),
+        });
+    } catch {
+        // Non-fatal.
+    }
+}
