@@ -249,6 +249,84 @@ export interface Database {
                 Relationships: [];
             };
 
+            tester_groups: {
+                Row: {
+                    id: string; // uuid
+                    publisher_id: string; // fk publishers.id — hard owner
+                    org_id: string | null; // fk organizations.id — optional org-sharing
+                    name: string;
+                    description: string | null;
+                    member_count: number; // denormalized, trigger-maintained
+                    created_at: string;
+                    updated_at: string;
+                };
+                Insert: {
+                    id?: string;
+                    publisher_id: string;
+                    org_id?: string | null;
+                    name: string;
+                    description?: string | null;
+                    member_count?: number;
+                    created_at?: string;
+                    updated_at?: string;
+                };
+                Update: {
+                    name?: string;
+                    description?: string | null;
+                    org_id?: string | null;
+                    member_count?: number;
+                    updated_at?: string;
+                };
+                Relationships: [];
+            };
+
+            tester_group_members: {
+                Row: {
+                    id: string; // uuid
+                    group_id: string; // fk tester_groups.id
+                    wallet_hash: string; // SHA-256 of tester wallet — never plaintext
+                    added_by_publisher_id: string | null; // fk publishers.id
+                    created_at: string;
+                };
+                Insert: {
+                    id?: string;
+                    group_id: string;
+                    wallet_hash: string;
+                    added_by_publisher_id?: string | null;
+                    created_at?: string;
+                };
+                Update: {
+                    wallet_hash?: string;
+                };
+                Relationships: [];
+            };
+
+            beta_track_group_links: {
+                Row: {
+                    id: string; // uuid
+                    track_id: string; // fk beta_tracks.id
+                    group_id: string; // fk tester_groups.id
+                    attached_by_publisher_id: string | null; // fk publishers.id
+                    members_added: number; // rows this attach actually inserted
+                    partial: boolean; // true if the attach hit the 200 cap
+                    attached_at: string;
+                };
+                Insert: {
+                    id?: string;
+                    track_id: string;
+                    group_id: string;
+                    attached_by_publisher_id?: string | null;
+                    members_added?: number;
+                    partial?: boolean;
+                    attached_at?: string;
+                };
+                Update: {
+                    members_added?: number;
+                    partial?: boolean;
+                };
+                Relationships: [];
+            };
+
             install_events: {
                 Row: {
                     id: string; // uuid
@@ -947,6 +1025,15 @@ export interface Database {
                 Args: { _app_id: string; _now?: string };
                 Returns: { dau: number; wau: number; mau: number }[];
             };
+            apply_tester_group_to_track: {
+                Args: { p_track_id: string; p_group_id: string; p_actor_publisher_id: string };
+                Returns: {
+                    added: number;
+                    already_present: number;
+                    remaining_in_group: number;
+                    over_cap: boolean;
+                }[];
+            };
         };
 
         Enums: {
@@ -1100,4 +1187,8 @@ export interface CohortCriteria {
 }
 
 export type CohortDefinition = Database["public"]["Tables"]["cohort_definitions"]["Row"];
+
+export type TesterGroup = Database["public"]["Tables"]["tester_groups"]["Row"];
+export type TesterGroupMember = Database["public"]["Tables"]["tester_group_members"]["Row"];
+export type BetaTrackGroupLink = Database["public"]["Tables"]["beta_track_group_links"]["Row"];
 
