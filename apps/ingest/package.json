@@ -14,12 +14,14 @@
   },
   "dependencies": {
     "@canopy/types": "workspace:*",
+    "bcryptjs": "^3.0.3",
     "hono": "^4.12.21",
     "pg": "^8.21.0",
     "zod": "^3.24.4"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250521.0",
+    "@types/bcryptjs": "^3.0.0",
     "@types/pg": "^8.20.0",
     "@typescript-eslint/eslint-plugin": "^8.32.1",
     "@typescript-eslint/parser": "^8.32.1",

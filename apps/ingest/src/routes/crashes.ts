@@ -54,7 +54,7 @@ crashesRouter.post("/", async (c) => {
 
     const { apiKey, appId } = parsed.data;
 
-    const keyValidation = await validateApiKey(apiKey, appId, c.env.API_KEYS_KV);
+    const keyValidation = await validateApiKey(apiKey, appId, c.env);
     if (!keyValidation.valid) {
         return c.json(
             { error: { code: "UNAUTHORIZED", message: "Invalid or revoked API key" } },

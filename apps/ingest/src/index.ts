@@ -45,8 +45,9 @@ app.notFound((c) =>
     c.json({ error: { code: "NOT_FOUND", message: "Not found" } }, 404),
 );
 
-// ─── Rate limiter Durable Object ───
+// ─── Durable Objects ───
 
 export { RateLimiter } from "./durable-objects/rate-limiter";
+export { MonthlyQuota } from "./durable-objects/monthly-quota";
 
 export default app;

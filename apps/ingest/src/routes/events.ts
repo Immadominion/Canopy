@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Env, EventsBatchRequest } from "../types";
 import { validateApiKey } from "../middleware/api-key";
 import { checkRateLimit } from "../durable-objects/rate-limiter";
+import { checkQuota } from "../durable-objects/monthly-quota";
 import { dedupEvents, markEventsSeen } from "../middleware/dedup";
 import { withDb } from "../db/client";
 
@@ -65,7 +66,7 @@ eventsRouter.post("/", async (c) => {
     const { apiKey, appId, events } = parsed.data;
 
     // 2. Validate API key (KV lookup)
-    const keyValidation = await validateApiKey(apiKey, appId, c.env.API_KEYS_KV);
+    const keyValidation = await validateApiKey(apiKey, appId, c.env);
     if (!keyValidation.valid) {
         return c.json(
             { error: { code: "UNAUTHORIZED", message: "Invalid or revoked API key" } },
@@ -87,6 +88,27 @@ eventsRouter.post("/", async (c) => {
 
     if (accepted.length === 0) {
         return c.json({ accepted: 0, rejected: rejected.length });
+    }
+
+    // 4b. Monthly events quota (per publisher, by plan). Unlimited plans (-1) skip it.
+    if (keyValidation.eventsLimit >= 0) {
+        const within = await checkQuota(
+            keyValidation.publisherId,
+            accepted.length,
+            keyValidation.eventsLimit,
+            c.env.MONTHLY_QUOTA,
+        );
+        if (!within) {
+            return c.json(
+                {
+                    error: {
+                        code: "QUOTA_EXCEEDED",
+                        message: "Monthly events limit reached. Upgrade your plan for more.",
+                    },
+                },
+                429,
+            );
+        }
     }
 
     // 5. Batch write to Supabase via Hyperdrive

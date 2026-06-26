@@ -9,6 +9,7 @@ export interface Env {
 
     // Durable Objects
     RATE_LIMITER: DurableObjectNamespace;
+    MONTHLY_QUOTA: DurableObjectNamespace;
 
     // Hyperdrive (Supabase connection pool)
     HYPERDRIVE: Hyperdrive;

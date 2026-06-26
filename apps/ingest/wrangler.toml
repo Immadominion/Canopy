@@ -13,6 +13,10 @@ compatibility_flags = ["nodejs_compat"]
 tag = "v1"
 new_sqlite_classes = ["RateLimiter"]
 
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["MonthlyQuota"]
+
 # ─────────────────────────────────────────────────────────────────────────────
 # LOCAL DEV  →  `wrangler dev --env local`
 # Named environments do NOT inherit top-level bindings, so they are declared
@@ -37,6 +41,10 @@ id = "local-event-dedup-kv"
 [[env.local.durable_objects.bindings]]
 name = "RATE_LIMITER"
 class_name = "RateLimiter"
+
+[[env.local.durable_objects.bindings]]
+name = "MONTHLY_QUOTA"
+class_name = "MonthlyQuota"
 
 [[env.local.hyperdrive]]
 binding = "HYPERDRIVE"
@@ -67,6 +75,10 @@ preview_id = "REPLACE_WITH_DEDUP_KV_PREVIEW_ID"
 [[env.production.durable_objects.bindings]]
 name = "RATE_LIMITER"
 class_name = "RateLimiter"
+
+[[env.production.durable_objects.bindings]]
+name = "MONTHLY_QUOTA"
+class_name = "MonthlyQuota"
 
 [[env.production.hyperdrive]]
 binding = "HYPERDRIVE"
