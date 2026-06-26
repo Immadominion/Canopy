@@ -188,6 +188,7 @@ export interface Database {
                     | "expired"
                     | "revoked";
                     seeker_only: boolean; // if true, testers must hold a Seeker Genesis Token
+                    is_demo: boolean; // if true, any wallet can see + install (public demo)
                     release_notes: string | null;
                     arweave_tx_id: string | null; // set async when Arweave confirms
                     apk_deleted_at: string | null; // set when the APK is deleted from R2
@@ -208,6 +209,7 @@ export interface Database {
                     tester_count?: number;
                     status?: BetaTrackStatus;
                     seeker_only?: boolean;
+                    is_demo?: boolean;
                     release_notes?: string | null;
                     expires_at: string; // required — must be set at creation
                     created_at?: string;
@@ -216,6 +218,7 @@ export interface Database {
                 Update: {
                     status?: BetaTrackStatus;
                     seeker_only?: boolean;
+                    is_demo?: boolean;
                     release_notes?: string | null;
                     arweave_tx_id?: string | null;
                     apk_deleted_at?: string | null;

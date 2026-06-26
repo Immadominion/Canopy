@@ -47,7 +47,20 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     if (testerErr) return apiError("DB_ERROR", "Failed to load betas", 500);
 
-    const trackIds = (testerRows ?? []).map((r) => r.track_id);
+    // Demo builds are public: visible to every signed-in wallet, on top of the
+    // tracks this wallet is allowlisted for.
+    const { data: demoRows } = await admin
+        .from("beta_tracks")
+        .select("id")
+        .eq("is_demo", true)
+        .eq("status", "active");
+
+    const trackIds = [
+        ...new Set([
+            ...(testerRows ?? []).map((r) => r.track_id),
+            ...(demoRows ?? []).map((r) => r.id),
+        ]),
+    ];
     if (trackIds.length === 0) return NextResponse.json({ betas: [] });
 
     // 2. Of those, the tester-visible ones: active, plus recently revoked/expired

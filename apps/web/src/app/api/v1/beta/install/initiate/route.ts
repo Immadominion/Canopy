@@ -52,7 +52,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const { data: track, error: trackErr } = await admin
         .from("beta_tracks")
-        .select("id, status, expires_at, seeker_only")
+        .select("id, status, expires_at, seeker_only, is_demo")
         .eq("id", parsed.data.trackId)
         .maybeSingle();
 
@@ -72,14 +72,17 @@ export async function POST(request: Request): Promise<NextResponse> {
         }
     }
 
-    const { data: tester } = await admin
-        .from("beta_testers")
-        .select("id")
-        .eq("track_id", track.id)
-        .eq("wallet_hash", session.walletHash)
-        .maybeSingle();
+    // Demo builds skip the allowlist (any signed-in wallet may install).
+    if (!track.is_demo) {
+        const { data: tester } = await admin
+            .from("beta_testers")
+            .select("id")
+            .eq("track_id", track.id)
+            .eq("wallet_hash", session.walletHash)
+            .maybeSingle();
 
-    if (!tester) return notFound();
+        if (!tester) return notFound();
+    }
 
     // Determine the base URL — env first, then request origin
     const baseUrl = (() => {

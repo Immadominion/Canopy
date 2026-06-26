@@ -71,7 +71,7 @@ export async function GET(_request: Request, { params }: RouteParams): Promise<N
     const { data: track, error } = await admin
         .from("beta_tracks")
         .select(
-            "id, app_id, publisher_id, version_name, version_code, apk_sha256, apk_size_bytes, tester_cap, tester_count, status, release_notes, expires_at, created_at, updated_at",
+            "id, app_id, publisher_id, version_name, version_code, apk_sha256, apk_size_bytes, tester_cap, tester_count, status, release_notes, expires_at, created_at, updated_at, is_demo",
         )
         .eq("id", trackId)
         .maybeSingle();
@@ -101,7 +101,9 @@ export async function GET(_request: Request, { params }: RouteParams): Promise<N
         isTester = tester != null;
     }
 
-    if (!isOwner && !isTester) return notFound();
+    // Demo builds are viewable by any signed-in wallet (they get the redacted
+    // tester view, same as an allowlisted tester).
+    if (!isOwner && !isTester && !track.is_demo) return notFound();
 
     // Owner sees everything; testers see a redacted view (no r2 internal data).
     if (isOwner) {

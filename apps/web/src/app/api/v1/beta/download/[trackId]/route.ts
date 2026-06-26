@@ -65,7 +65,7 @@ export async function GET(request: Request, { params }: RouteParams): Promise<Ne
     const admin = createSupabaseAdminClient();
     const { data: track, error } = await admin
         .from("beta_tracks")
-        .select("id, status, r2_key, apk_sha256, apk_size_bytes, expires_at, apk_deleted_at")
+        .select("id, status, r2_key, apk_sha256, apk_size_bytes, expires_at, apk_deleted_at, is_demo")
         .eq("id", trackId)
         .maybeSingle();
 
@@ -77,15 +77,18 @@ export async function GET(request: Request, { params }: RouteParams): Promise<Ne
     if (track.apk_deleted_at) return notFound();
 
     // Re-verify that the wallet on the signed URL is STILL on the allowlist
-    // (could have been revoked between URL issuance and download).
-    const { data: tester } = await admin
-        .from("beta_testers")
-        .select("id")
-        .eq("track_id", track.id)
-        .eq("wallet_hash", payload.walletHash)
-        .maybeSingle();
+    // (could have been revoked between URL issuance and download). Demo builds
+    // are public, so the allowlist re-check is skipped for them.
+    if (!track.is_demo) {
+        const { data: tester } = await admin
+            .from("beta_testers")
+            .select("id")
+            .eq("track_id", track.id)
+            .eq("wallet_hash", payload.walletHash)
+            .maybeSingle();
 
-    if (!tester) return notFound();
+        if (!tester) return notFound();
+    }
 
     let stream;
     try {

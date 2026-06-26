@@ -7,6 +7,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { AddTestersForm } from "@/components/beta/add-testers-form";
 import { AddFromGroupForm } from "@/components/beta/add-from-group-form";
 import { ShareInstallLink } from "@/components/beta/share-install-link";
+import { DemoToggle } from "@/components/beta/demo-toggle";
 import { TrackStatusControls } from "@/components/beta/track-status-controls";
 import { TrackDangerControls } from "@/components/beta/track-danger-controls";
 import { TrackExpiryCountdown } from "@/components/beta/track-expiry-countdown";
@@ -99,7 +100,7 @@ export default async function TrackDetailPage({ params }: PageProps) {
     const { data: track, error: trackError } = await admin
         .from("beta_tracks")
         .select(
-            "id, version_name, version_code, status, tester_count, tester_cap, apk_sha256, apk_size_bytes, release_notes, arweave_tx_id, apk_deleted_at, expires_at, created_at",
+            "id, version_name, version_code, status, tester_count, tester_cap, apk_sha256, apk_size_bytes, release_notes, arweave_tx_id, apk_deleted_at, expires_at, created_at, is_demo",
         )
         .eq("id", trackId)
         .eq("app_id", app.id)
@@ -315,6 +316,11 @@ export default async function TrackDetailPage({ params }: PageProps) {
                         <ShareInstallLink trackId={track.id} />
                     </div>
                 )}
+
+                {/* Public demo toggle — let any wallet install this build (for reviewers) */}
+                <div className="mt-nd-xl pt-nd-xl border-t border-nd-border">
+                    <DemoToggle trackId={track.id} isDemo={track.is_demo} />
+                </div>
             </div>
 
             {/* ── Layer 3: APK metadata + Arweave record ── */}
