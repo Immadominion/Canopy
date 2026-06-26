@@ -17,7 +17,9 @@
                 "buildType": "apk"
             },
             "env": {
-                "EXPO_PUBLIC_CANOPY_API_URL": "https://app.trycanopy.xyz"
+                "EXPO_PUBLIC_CANOPY_API_URL": "https://www.trycanopy.xyz",
+                "EXPO_PUBLIC_CANOPY_INGEST_URL": "https://ingest.trycanopy.xyz",
+                "EXPO_PUBLIC_CANOPY_APP_ID": "735a773e-213d-4a98-ae83-e574ab9b7312"
             }
         },
         "production": {
@@ -26,7 +28,9 @@
                 "buildType": "apk"
             },
             "env": {
-                "EXPO_PUBLIC_CANOPY_API_URL": "https://app.trycanopy.xyz"
+                "EXPO_PUBLIC_CANOPY_API_URL": "https://www.trycanopy.xyz",
+                "EXPO_PUBLIC_CANOPY_INGEST_URL": "https://ingest.trycanopy.xyz",
+                "EXPO_PUBLIC_CANOPY_APP_ID": "735a773e-213d-4a98-ae83-e574ab9b7312"
             }
         }
     },

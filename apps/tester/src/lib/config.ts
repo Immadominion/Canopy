@@ -19,7 +19,9 @@ export const CANOPY_ANALYTICS = {
     apiKey: ENV.EXPO_PUBLIC_CANOPY_API_KEY ?? "",
     appId: ENV.EXPO_PUBLIC_CANOPY_APP_ID ?? "",
     appVersion: "0.1.0",
+    // Strip any trailing slash — the SDK appends "/v1/events", so a trailing
+    // slash here would POST to "…//v1/events", which 404s.
     ...(ENV.EXPO_PUBLIC_CANOPY_INGEST_URL
-        ? { ingestUrl: ENV.EXPO_PUBLIC_CANOPY_INGEST_URL }
+        ? { ingestUrl: ENV.EXPO_PUBLIC_CANOPY_INGEST_URL.replace(/\/+$/, "") }
         : {}),
 };

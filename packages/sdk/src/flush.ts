@@ -20,7 +20,8 @@ export async function flushEvents(
 ): Promise<void> {
     if (events.length === 0) return;
 
-    const ingestUrl = config.ingestUrl ?? DEFAULT_INGEST_URL;
+    // Strip trailing slashes so a configured "…/" never produces "…//v1/events" (404s).
+    const ingestUrl = (config.ingestUrl ?? DEFAULT_INGEST_URL).replace(/\/+$/, "");
 
     for (let i = 0; i < events.length; i += FLUSH_BATCH_SIZE) {
         const batch = events.slice(i, i + FLUSH_BATCH_SIZE);
