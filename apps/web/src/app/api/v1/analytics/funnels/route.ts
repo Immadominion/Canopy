@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { apiError } from "@/lib/api/errors";
 import { requireVerifiedPublisher } from "@/lib/auth/session";
+import { requireFeature } from "@/lib/billing/entitlements";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 const stepSchema = z.object({
@@ -81,6 +82,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const owned = await verifyAppOwnership(supabase, appId, auth.publisher.id);
     if (!owned) return apiError("NOT_FOUND", "App not found", 404);
+
+    // Funnels are a paid (advancedAnalytics) feature — enforce server-side.
+    const gate = await requireFeature(supabase, auth.publisher.id, "advancedAnalytics");
+    if (gate) return gate;
 
     const { data, error } = await supabase
         .from("funnel_definitions")

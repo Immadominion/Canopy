@@ -101,3 +101,25 @@ export const PLAN_DISPLAY_NAMES: Record<"free" | "pro" | "enterprise", string> =
     pro: "Pro",
     enterprise: "Enterprise",
 };
+
+/**
+ * The org's plan RIGHT NOW. A paid plan only counts while the subscription is
+ * active AND the paid period has not lapsed; otherwise it is "free".
+ *
+ * SECURITY: every entitlement check MUST go through this, never read org.plan
+ * directly. Billing is pay-to-extend with no auto-downgrade cron, so reading the
+ * raw column lets a one-time payment keep paid features forever once the period
+ * ends. This read-time check is the only thing that makes the period mean anything.
+ */
+export function effectivePlan(org: {
+    plan?: string | null;
+    subscription_status?: string | null;
+    current_period_end?: string | null;
+}): "free" | "pro" | "enterprise" {
+    const plan = org.plan;
+    if (plan !== "pro" && plan !== "enterprise") return "free";
+    if (org.subscription_status !== "active") return "free";
+    const end = org.current_period_end ? new Date(org.current_period_end).getTime() : 0;
+    if (!end || end <= Date.now()) return "free";
+    return plan;
+}

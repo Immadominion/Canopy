@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { apiError } from "@/lib/api/errors";
 import { DAY_MS, parseBoundedInt, parseDateRange } from "@/lib/api/query";
 import { requireVerifiedPublisher } from "@/lib/auth/session";
+import { requireFeature } from "@/lib/billing/entitlements";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 type RouteParams = Promise<{ appId: string }>;
@@ -44,6 +45,10 @@ export async function GET(
     const supabase = createSupabaseAdminClient();
     const owned = await verifyAppOwnership(supabase, appId, auth.publisher.id);
     if (!owned) return apiError("NOT_FOUND", "App not found", 404);
+
+    // Retention is a paid (advancedAnalytics) feature — enforce server-side.
+    const gate = await requireFeature(supabase, auth.publisher.id, "advancedAnalytics");
+    if (gate) return gate;
 
     const range = parseDateRange(request, { defaultSinceMs: Date.now() - 30 * DAY_MS });
     if (range instanceof NextResponse) return range;

@@ -9,7 +9,7 @@ import { apiError } from "@/lib/api/errors";
 import { requireVerifiedPublisher } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { logActivity } from "@/lib/activity/log";
-import { PLAN_LIMITS } from "@/lib/billing/enforce";
+import { PLAN_LIMITS, effectivePlan } from "@/lib/billing/enforce";
 
 const SALT_ROUNDS = 10;
 const KEY_PREFIX_HEADER = "cnp_live_";
@@ -52,7 +52,7 @@ export async function GET(): Promise<NextResponse> {
 
     const { data: org, error: orgError } = await admin
         .from("organizations")
-        .select("id, plan")
+        .select("id, plan, subscription_status, current_period_end")
         .eq("owner_id", auth.publisher.id)
         .maybeSingle();
 
@@ -76,7 +76,7 @@ export async function GET(): Promise<NextResponse> {
         return apiError("DATABASE_ERROR", "Failed to fetch API keys", 500);
     }
 
-    const plan = (org.plan as "free" | "pro" | "enterprise") ?? "free";
+    const plan = effectivePlan(org);
     const limits = PLAN_LIMITS[plan];
 
     return NextResponse.json({
@@ -125,7 +125,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Resolve org + plan
     const { data: org, error: orgError } = await admin
         .from("organizations")
-        .select("id, plan")
+        .select("id, plan, subscription_status, current_period_end")
         .eq("owner_id", auth.publisher.id)
         .maybeSingle();
 
@@ -137,7 +137,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         return apiError("ORG_NOT_FOUND", "No organisation found for this publisher", 404);
     }
 
-    const plan = (org.plan as "free" | "pro" | "enterprise") ?? "free";
+    const plan = effectivePlan(org);
     const limits = PLAN_LIMITS[plan];
 
     // Count active keys for this org

@@ -5,6 +5,7 @@ import type { Json, RemoteConfigCondition } from "@canopy/types";
 
 import { apiError } from "@/lib/api/errors";
 import { requireVerifiedPublisher } from "@/lib/auth/session";
+import { requireFeature } from "@/lib/billing/entitlements";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { logActivity } from "@/lib/activity/log";
 
@@ -128,6 +129,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!app) {
         return apiError("NOT_FOUND", "App not found or access denied", 404);
     }
+
+    // Remote Config is a paid feature — enforce server-side.
+    const gate = await requireFeature(admin, auth.publisher.id, "remoteConfig");
+    if (gate) return gate;
 
     // Check for duplicate key
     const { data: existing } = await admin
