@@ -27,6 +27,9 @@ const nextConfig: NextConfig = {
                             // direct-to-R2 presigned APK upload (PUT). Wildcard avoids
                             // hardcoding the R2 account id in this public repo.
                             "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://mainnet.helius-rpc.com https://sentry.io https://*.sentry.io https://*.r2.cloudflarestorage.com",
+                            // YouTube embeds in the docs (privacy-friendly nocookie host;
+                            // youtube.com covered for player redirects).
+                            "frame-src https://www.youtube-nocookie.com https://www.youtube.com",
                             "frame-ancestors 'none'",
                         ].join("; "),
                     },
