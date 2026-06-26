@@ -58,6 +58,12 @@ export function Landing({ authed }: { authed: boolean }): React.JSX.Element {
                     <a className={`${styles["navLink"]} ${styles["hideSm"]}`} href="#solutions">
                         Product
                     </a>
+                    <Link className={`${styles["navLink"]} ${styles["hideSm"]}`} href="/pricing">
+                        Pricing
+                    </Link>
+                    <Link className={`${styles["navLink"]} ${styles["hideSm"]}`} href="/docs">
+                        Docs
+                    </Link>
                     <Link className={styles["navCta"]} href={accountHref}>
                         {accountLabel}
                     </Link>
