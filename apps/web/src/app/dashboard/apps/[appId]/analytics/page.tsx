@@ -398,11 +398,28 @@ export default async function AnalyticsPage({ params }: PageProps) {
                         <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em]">
                             NO EVENTS RECORDED YET
                         </p>
-                        <p className="font-body text-nd-body-sm text-nd-text-secondary mt-nd-sm">
-                            Install the{" "}
-                            <code className="font-mono text-nd-text-secondary">@canopy/react-native</code> SDK in
-                            your app to start capturing analytics.
+                        <p className="font-body text-nd-body-sm text-nd-text-secondary mt-nd-sm leading-relaxed">
+                            Analytics come from your own app, not from Canopy. Installing a build does
+                            not create events. To start seeing data:
                         </p>
+                        <div className="mt-nd-md space-y-nd-xs font-body text-nd-body-sm text-nd-text-secondary leading-relaxed">
+                            <p>
+                                1. Make an API key in{" "}
+                                <Link
+                                    href="/dashboard/settings/api-keys"
+                                    className="text-nd-text-primary underline hover:text-nd-brand-hover"
+                                >
+                                    Settings → API Keys
+                                </Link>
+                                .
+                            </p>
+                            <p>
+                                2. Add the{" "}
+                                <code className="font-mono text-nd-text-secondary">@canopy/react-native</code>{" "}
+                                SDK to your app and pass that key plus this app&apos;s ID.
+                            </p>
+                            <p>3. Ship a build. Events show up here within a minute.</p>
+                        </div>
                     </div>
                 ) : (
                     <div className="border-t border-nd-border pt-nd-md">

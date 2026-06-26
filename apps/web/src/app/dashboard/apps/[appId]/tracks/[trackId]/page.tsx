@@ -6,6 +6,7 @@ import { getCurrentPublisher } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { AddTestersForm } from "@/components/beta/add-testers-form";
 import { AddFromGroupForm } from "@/components/beta/add-from-group-form";
+import { ShareInstallLink } from "@/components/beta/share-install-link";
 import { TrackStatusControls } from "@/components/beta/track-status-controls";
 import { TrackDangerControls } from "@/components/beta/track-danger-controls";
 import { TrackExpiryCountdown } from "@/components/beta/track-expiry-countdown";
@@ -305,6 +306,13 @@ export default async function TrackDetailPage({ params }: PageProps) {
                                 </div>
                             );
                         })}
+                    </div>
+                )}
+
+                {/* Share an install link with allowlisted testers (active builds only) */}
+                {track.status === "active" && !isExpired && (
+                    <div className="mt-nd-xl pt-nd-xl border-t border-nd-border">
+                        <ShareInstallLink trackId={track.id} />
                     </div>
                 )}
             </div>

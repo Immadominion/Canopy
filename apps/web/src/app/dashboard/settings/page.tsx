@@ -19,7 +19,7 @@ const SETTINGS_LINKS = [
     {
         href: "/dashboard/billing",
         label: "BILLING",
-        description: "Plan, usage, and invoices via the Stripe customer portal.",
+        description: "Your plan and payments. Upgrade or extend by paying in USDC on Solana.",
     },
 ];
 

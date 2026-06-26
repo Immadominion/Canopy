@@ -15,6 +15,21 @@ const NAV_ITEMS = [
 ] as const;
 
 /**
+ * Which nav item is active for a path. Per-app analytics lives under
+ * /dashboard/apps/[id]/analytics, so without this it would light up "Apps"
+ * while showing analytics. Treat any per-app analytics path as the Analytics tab.
+ */
+function isNavActive(href: string, pathname: string): boolean {
+    const inPerAppAnalytics =
+        pathname.startsWith("/dashboard/apps/") && pathname.includes("/analytics");
+    if (href === "/dashboard/analytics") return pathname === href || inPerAppAnalytics;
+    if (href === "/dashboard/apps") {
+        return pathname.startsWith("/dashboard/apps") && !inPerAppAnalytics;
+    }
+    return pathname.startsWith(href);
+}
+
+/**
  * Left sidebar navigation.
  *
  * Collapsed to a 64px icon rail by default; expands to 248px **on hover**, and
@@ -59,7 +74,7 @@ export function DashboardSidebar({ walletDisplay }: { walletDisplay: string }) {
             {/* Nav */}
             <nav className="flex-1 mt-nd-sm flex flex-col gap-nd-2xs" aria-label="Primary">
                 {NAV_ITEMS.map(({ href, label, Icon }) => {
-                    const isActive = pathname.startsWith(href);
+                    const isActive = isNavActive(href, pathname);
                     return (
                         <Link
                             key={href}
