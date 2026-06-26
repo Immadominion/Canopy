@@ -1,3 +1,5 @@
+import { VideoEmbed } from "@/components/docs/video-embed";
+
 export default function InstallingDocs() {
     return (
         <>
@@ -6,6 +8,16 @@ export default function InstallingDocs() {
                 Your testers install through the Canopy tester app on their Android phone or Solana
                 Seeker. This is the part that keeps installs safe: Canopy checks the build against its
                 fingerprint before installing, so a fake or changed app never gets through.
+            </p>
+
+            <VideoEmbed
+                id="AoeWvDOFTMc"
+                title="What your testers see on Canopy"
+                caption="Watch: what your testers see"
+            />
+            <p>
+                Here is the same flow from your testers&apos; side, so you know exactly what they see
+                when they open your app on Canopy.
             </p>
 
             <h2>What a tester does</h2>
