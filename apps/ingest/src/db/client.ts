@@ -15,6 +15,14 @@ import type { Env } from "../types";
 export function createDbClient(env: Env): Client {
     return new Client({
         connectionString: env.HYPERDRIVE.connectionString,
+        // Bound every stage so a saturated pool FAILS FAST (-> 500 -> the SDK
+        // re-queues and retries) instead of hanging the invocation for 30s+.
+        // A hung invocation is worse than a fast failure: Cloudflare eventually
+        // cancels it, the `finally { client.end() }` may not run, and the pooled
+        // connection leaks — which exhausts the pool further and cascades into
+        // "every write hangs". Fast failure keeps the pool healthy.
+        connectionTimeoutMillis: 6000,
+        query_timeout: 8000,
     });
 }
 
