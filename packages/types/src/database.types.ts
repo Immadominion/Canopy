@@ -327,6 +327,33 @@ export interface Database {
                 Relationships: [];
             };
 
+            beta_feedback: {
+                Row: {
+                    id: string; // uuid
+                    track_id: string; // fk beta_tracks.id
+                    wallet_hash: string; // SHA-256 of tester wallet — never plaintext
+                    message: string;
+                    screenshot_key: string | null; // R2 key for an optional screenshot
+                    app_version_code: number | null;
+                    status: "open" | "resolved" | "archived";
+                    created_at: string;
+                };
+                Insert: {
+                    id?: string;
+                    track_id: string;
+                    wallet_hash: string;
+                    message: string;
+                    screenshot_key?: string | null;
+                    app_version_code?: number | null;
+                    status?: "open" | "resolved" | "archived";
+                    created_at?: string;
+                };
+                Update: {
+                    status?: "open" | "resolved" | "archived";
+                };
+                Relationships: [];
+            };
+
             install_events: {
                 Row: {
                     id: string; // uuid

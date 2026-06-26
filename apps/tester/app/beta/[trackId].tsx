@@ -23,6 +23,7 @@ import {
     SecondaryButton,
     SectionLabel,
 } from "@/ui/components";
+import { FeedbackForm } from "@/ui/feedback-form";
 import { formatBytes } from "@/ui/format";
 import { colors, mono, space, type ChipTone } from "@/ui/theme";
 
@@ -339,6 +340,11 @@ export default function BetaDetailScreen(): React.JSX.Element | null {
                     <SectionLabel>WHAT&apos;S NEW</SectionLabel>
                     <Text style={styles.notes}>{beta.releaseNotes}</Text>
                 </View>
+            ) : null}
+
+            {/* Send feedback (active betas only) */}
+            {isActive ? (
+                <FeedbackForm trackId={beta.trackId} versionCode={beta.versionCode} />
             ) : null}
 
             {/* Details */}

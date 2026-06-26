@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import { getCurrentPublisher } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { trackStatusChip } from "@/lib/ui/track-status";
-import { CaretRight, GearSix, UploadSimple, Users, Clock, Package } from "@/components/ui/icon";
+import { CaretRight, GearSix, UploadSimple, Users, Clock, Package, ChatText } from "@/components/ui/icon";
 
 export const metadata: Metadata = {
     title: "App Detail",
@@ -90,6 +90,9 @@ export default async function AppDetailPage({ params }: PageProps) {
                 </div>
 
                 <div className="flex items-center gap-nd-sm shrink-0">
+                    <Link href={`/dashboard/apps/${app.id}/feedback`} className="btn-secondary">
+                        <ChatText size={16} /> <span className="hidden sm:inline">Feedback</span>
+                    </Link>
                     <Link href={`/dashboard/apps/${app.id}/settings`} className="btn-secondary">
                         <GearSix size={16} /> <span className="hidden sm:inline">Settings</span>
                     </Link>

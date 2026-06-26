@@ -46,6 +46,7 @@ import {
     Users as RawUsers,
     Fingerprint as RawFingerprint,
     Sparkle as RawSparkle,
+    ChatText as RawChatText,
 } from "@phosphor-icons/react";
 
 type IconComponent = ForwardRefExoticComponent<IconProps & RefAttributes<SVGSVGElement>>;
@@ -91,3 +92,4 @@ export const Bell = decorative(RawBell);
 export const Users = decorative(RawUsers);
 export const Fingerprint = decorative(RawFingerprint);
 export const Sparkle = decorative(RawSparkle);
+export const ChatText = decorative(RawChatText);

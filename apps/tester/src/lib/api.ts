@@ -67,3 +67,34 @@ export async function confirmInstall(trackId: string): Promise<void> {
         // Non-fatal.
     }
 }
+
+/** A presigned R2 PUT URL + the key, for uploading a feedback screenshot. */
+export async function getFeedbackUploadUrl(
+    trackId: string,
+): Promise<{ uploadKey: string; url: string }> {
+    const res = await authedFetch("/api/v1/beta/feedback/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trackId }),
+    });
+    if (!res.ok) throw new Error("UPLOAD_URL_FAILED");
+    return (await res.json()) as { uploadKey: string; url: string };
+}
+
+/** Send written feedback (optionally with an already-uploaded screenshot key). */
+export async function submitFeedback(input: {
+    trackId: string;
+    message: string;
+    screenshotKey?: string;
+    appVersionCode?: number;
+}): Promise<void> {
+    const res = await authedFetch("/api/v1/beta/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: { code?: string } };
+        throw new Error(data.error?.code ?? "FEEDBACK_FAILED");
+    }
+}
