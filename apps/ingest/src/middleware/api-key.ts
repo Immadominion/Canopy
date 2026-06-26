@@ -58,7 +58,11 @@ export async function validateApiKey(
         cached = await loadKeyFromDb(apiKey, prefix, env);
     } catch (err) {
         console.error("[ingest] api-key DB validation failed:", err);
-        return INVALID;
+        // A DB/infra failure is NOT a verdict that the key is invalid. Re-throw so
+        // the caller returns a retryable 5xx. Returning INVALID here surfaces as a
+        // 401, which the SDK treats as permanent — dropping the batch forever on a
+        // transient DB hiccup (e.g. a saturated connection pool).
+        throw err;
     }
     if (!cached) return INVALID;
 

@@ -79,8 +79,19 @@ eventsRouter.post("/", async (c) => {
 
     const { apiKey, appId, events } = parsed.data;
 
-    // 2. Validate API key (KV lookup)
-    const keyValidation = await validateApiKey(apiKey, appId, c.env);
+    // 2. Validate API key (KV lookup, DB read-through on cache miss)
+    let keyValidation;
+    try {
+        keyValidation = await validateApiKey(apiKey, appId, c.env);
+    } catch {
+        // The key check itself failed on a DB/infra error (not a verdict that the
+        // key is bad). Return a retryable 5xx so the SDK re-queues — a 401 here
+        // would make the SDK drop the batch permanently on a transient hiccup.
+        return c.json(
+            { error: { code: "VALIDATION_UNAVAILABLE", message: "Key validation temporarily unavailable" } },
+            503,
+        );
+    }
     if (!keyValidation.valid) {
         return c.json(
             { error: { code: "UNAUTHORIZED", message: "Invalid or revoked API key" } },
