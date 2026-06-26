@@ -22,7 +22,8 @@
                 "backgroundColor": "#0E0E10"
             },
             "permissions": [
-                "android.permission.REQUEST_INSTALL_PACKAGES"
+                "android.permission.REQUEST_INSTALL_PACKAGES",
+                "android.permission.QUERY_ALL_PACKAGES"
             ],
             "blockedPermissions": [
                 "android.permission.READ_EXTERNAL_STORAGE",
