@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type React from "react";
@@ -49,7 +50,28 @@ export default async function ApiKeysPage(): Promise<React.ReactElement> {
         console.error("[api-keys page] org error", orgError);
         notFound();
     }
-    if (!org) notFound();
+    if (!org) {
+        return (
+            <main className="min-h-full bg-[#000000] text-[var(--text-primary)]">
+                <section className="max-w-3xl mx-auto px-6 py-16">
+                    <p className="font-mono text-[10px] tracking-[0.08em] uppercase text-[var(--text-tertiary)] mb-3">
+                        SETTINGS · API KEYS
+                    </p>
+                    <h1 className="font-display text-3xl font-bold tracking-tight mb-4">API Keys</h1>
+                    <p className="font-sans text-sm text-[var(--text-secondary)] leading-relaxed max-w-prose mb-8">
+                        API keys live under an organization, and you don&apos;t have one yet. Create your
+                        organization first, then come back here to make a key for your SDK.
+                    </p>
+                    <Link
+                        href="/dashboard/org/create"
+                        className="inline-block font-mono text-[11px] tracking-[0.08em] uppercase border border-[var(--border)] px-4 py-2 rounded-sm hover:border-[var(--text-tertiary)] transition-colors"
+                    >
+                        Create organization →
+                    </Link>
+                </section>
+            </main>
+        );
+    }
 
     const plan = (org.plan as "free" | "pro" | "enterprise") ?? "free";
     const limits = PLAN_LIMITS[plan];
