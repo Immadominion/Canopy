@@ -33,7 +33,7 @@ const STALE_TAIL_MS = 30 * 24 * 60 * 60 * 1000;
  * Auth: SIWS session (cookie for web, Bearer token for the mobile app). Wallets
  * are matched by hash — plaintext addresses are never stored or compared.
  */
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: Request): Promise<NextResponse> {
     const session = await getSessionWallet();
     if (!session) return apiError("UNAUTHENTICATED", "Sign in with Solana to continue", 401);
 
@@ -84,10 +84,14 @@ export async function GET(): Promise<NextResponse> {
     const appIds = [...new Set(trackList.map((t) => t.app_id))];
     const { data: apps } = await admin
         .from("apps")
-        .select("id, name, package_name")
+        .select("id, name, package_name, icon_key")
         .in("id", appIds);
 
     const appById = new Map((apps ?? []).map((a) => [a.id, a]));
+
+    // Absolute icon URL on the host the client actually called, so it resolves
+    // whether the app talks to prod or a local dev server.
+    const baseUrl = new URL(request.url).origin;
 
     const betas = trackList.map((t) => {
         const app = appById.get(t.app_id);
@@ -99,6 +103,8 @@ export async function GET(): Promise<NextResponse> {
             // packageName is always present so the app can match an installed copy
             // and offer to uninstall a revoked/expired build.
             packageName: app?.package_name ?? null,
+            // Real launcher icon (auto-extracted from the APK); null → monogram.
+            iconUrl: app?.icon_key ? `${baseUrl}/api/v1/apps/${app.id}/icon` : null,
             versionName: t.version_name,
             versionCode: t.version_code,
             status,

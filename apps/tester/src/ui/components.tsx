@@ -2,9 +2,10 @@
  * Shared UI primitives for the tester app — matches the Canopy web dashboard
  * (teal brand, dark-refreshed surfaces, rounded cards, semantic status chips).
  */
-import React from "react";
+import React, { useState } from "react";
 import {
     ActivityIndicator,
+    Image,
     Pressable,
     StyleSheet,
     Text,
@@ -15,20 +16,37 @@ import {
 
 import { avatarShade, chipColors, colors, mono, monogram, space, type ChipTone } from "./theme";
 
-/** App-icon avatar — rounded square with a monogram (placeholder for real icons). */
-export function AppAvatar({ name, size = 52 }: { name: string; size?: number }): React.JSX.Element {
+/**
+ * App-icon avatar — the real launcher icon when available, with a guaranteed
+ * monogram fallback so an app never renders without a visual (used when there's
+ * no icon URL or the image fails to load).
+ */
+export function AppAvatar({
+    name,
+    iconUri,
+    size = 52,
+}: {
+    name: string;
+    iconUri?: string | null;
+    size?: number;
+}): React.JSX.Element {
+    const [failed, setFailed] = useState(false);
+    const box = { width: size, height: size, borderRadius: size * 0.26 };
+
+    if (iconUri && !failed) {
+        return (
+            <Image
+                source={{ uri: iconUri }}
+                style={[styles.avatar, box]}
+                onError={() => {
+                    setFailed(true);
+                }}
+            />
+        );
+    }
+
     return (
-        <View
-            style={[
-                styles.avatar,
-                {
-                    width: size,
-                    height: size,
-                    borderRadius: size * 0.26,
-                    backgroundColor: avatarShade(name),
-                },
-            ]}
-        >
+        <View style={[styles.avatar, box, { backgroundColor: avatarShade(name) }]}>
             <Text style={[styles.avatarText, { fontSize: size * 0.34 }]}>{monogram(name)}</Text>
         </View>
     );

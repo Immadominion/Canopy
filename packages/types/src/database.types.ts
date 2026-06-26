@@ -137,6 +137,7 @@ export interface Database {
                     description: string | null;
                     dapp_store_app_id: string | null;
                     org_id: string | null; // fk organizations.id — nullable until org is created
+                    icon_key: string | null; // R2 key for the auto-extracted launcher icon
                     created_at: string;
                     updated_at: string;
                 };
@@ -148,6 +149,7 @@ export interface Database {
                     description?: string | null;
                     dapp_store_app_id?: string | null;
                     org_id?: string | null;
+                    icon_key?: string | null;
                     created_at?: string;
                     updated_at?: string;
                 };
@@ -159,6 +161,7 @@ export interface Database {
                     description?: string | null;
                     dapp_store_app_id?: string | null;
                     org_id?: string | null;
+                    icon_key?: string | null;
                     updated_at?: string;
                 };
                 Relationships: [];

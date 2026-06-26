@@ -165,7 +165,7 @@ export default function MyAppsScreen(): React.JSX.Element {
                             }}
                             style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
                         >
-                            <AppAvatar name={item.appName} />
+                            <AppAvatar name={item.appName} iconUri={item.iconUrl} />
                             <View style={styles.cardBody}>
                                 <Text style={styles.appName} numberOfLines={1}>
                                     {item.appName}

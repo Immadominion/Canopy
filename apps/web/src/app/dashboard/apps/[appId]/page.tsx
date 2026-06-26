@@ -6,18 +6,11 @@ import { getCurrentPublisher } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { trackStatusChip } from "@/lib/ui/track-status";
 import { CaretRight, GearSix, UploadSimple, Users, Clock, Package, ChatText } from "@/components/ui/icon";
+import { AppIcon } from "@/components/ui/app-icon";
 
 export const metadata: Metadata = {
     title: "App Detail",
 };
-
-function monogram(name: string): string {
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    const first = parts[0] ?? "";
-    if (parts.length === 0) return "?";
-    if (parts.length === 1) return first.slice(0, 2).toUpperCase();
-    return ((first[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
-}
 
 function expiryDisplay(expiresAt: string): string {
     const ms = new Date(expiresAt).getTime() - Date.now();
@@ -45,7 +38,7 @@ export default async function AppDetailPage({ params }: PageProps) {
 
     const { data: app, error: appError } = await admin
         .from("apps")
-        .select("id, name, package_name, created_at, description")
+        .select("id, name, package_name, created_at, description, icon_key")
         .eq("id", appId)
         .eq("publisher_id", publisher.id)
         .maybeSingle();
@@ -76,9 +69,7 @@ export default async function AppDetailPage({ params }: PageProps) {
             {/* ── Header ── */}
             <div className="flex items-start justify-between gap-nd-lg mb-nd-2xl">
                 <div className="flex items-center gap-nd-md min-w-0">
-                    <span className="flex items-center justify-center w-12 h-12 shrink-0 rounded-nd-card bg-nd-surface-raised border border-nd-border font-mono text-nd-body font-semibold text-nd-text-primary">
-                        {monogram(app.name)}
-                    </span>
+                    <AppIcon appId={app.id} name={app.name} hasIcon={app.icon_key != null} size={48} />
                     <div className="min-w-0">
                         <h1 className="font-body text-nd-heading font-bold text-nd-text-display tracking-tight truncate">
                             {app.name}

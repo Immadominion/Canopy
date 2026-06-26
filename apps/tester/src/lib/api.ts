@@ -10,6 +10,8 @@ export interface BetaSummary {
     trackId: string;
     appName: string;
     packageName: string | null;
+    /** Absolute URL to the app's launcher icon, or null → render a monogram. */
+    iconUrl: string | null;
     versionName: string;
     versionCode: number;
     /** Lifecycle state — only "active" betas are installable. */

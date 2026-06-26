@@ -7,6 +7,7 @@ import { generateTrackExpiry, isValidApkSha256 } from "@canopy/utils";
 
 import { requireVerifiedPublisher } from "@/lib/auth/session";
 import { apiError } from "@/lib/api/errors";
+import { extractApkIcon } from "@/lib/apk/icon";
 import { parseApkManifest } from "@/lib/apk/manifest";
 import { writeTrackCreatedRecord } from "@/lib/arweave/irys";
 import { logger } from "@/lib/logger";
@@ -17,6 +18,7 @@ import {
     deleteApkFromR2,
     downloadApkFromR2,
     statApkInR2,
+    uploadApkToR2,
 } from "@/lib/r2/client";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -247,6 +249,23 @@ export async function POST(request: Request): Promise<NextResponse> {
     // within the function budget, the build page's poller / recheck cron settles
     // it once the analysis completes.
     after(() => claimAndScanTrack(admin, track.id, { apkBytes: apkBuffer }));
+
+    // Auto-extract the app's launcher icon from this build (best-effort) so the
+    // dashboard + tester app show the real icon, never a bare monogram. Overwrites
+    // the app's icon with the latest build's. A failure here just leaves the
+    // monogram fallback in place — it never affects the upload.
+    after(async () => {
+        try {
+            const icon = await extractApkIcon(apkBuffer);
+            if (!icon) return;
+            const iconKey = `icons/${meta.appId}`;
+            await uploadApkToR2({ key: iconKey, body: icon.bytes, contentType: icon.mime });
+            await admin.from("apps").update({ icon_key: iconKey }).eq("id", meta.appId);
+            log.info({ appId: meta.appId }, "App icon extracted + stored");
+        } catch (err) {
+            log.warn({ err, appId: meta.appId }, "Failed to store app icon");
+        }
+    });
 
     // Arweave provenance fingerprint (non-fatal).
     after(async () => {

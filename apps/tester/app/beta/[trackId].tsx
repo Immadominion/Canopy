@@ -243,7 +243,7 @@ export default function BetaDetailScreen(): React.JSX.Element | null {
 
             {/* Header */}
             <View style={styles.head}>
-                <AppAvatar name={beta.appName} size={72} />
+                <AppAvatar name={beta.appName} iconUri={beta.iconUrl} size={72} />
                 <View style={styles.headBody}>
                     <Text style={styles.appName} numberOfLines={2}>
                         {beta.appName}

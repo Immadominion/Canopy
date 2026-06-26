@@ -1,6 +1,7 @@
 import { isValidUuid } from "@canopy/utils";
 
 import { getCurrentPublisher } from "@/lib/auth/session";
+import { safeImageHeaders, sniffImageMime } from "@/lib/images/sniff";
 import { downloadApkFromR2 } from "@/lib/r2/client";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -8,33 +9,6 @@ export const runtime = "nodejs";
 
 interface RouteParams {
     params: Promise<{ feedbackId: string }>;
-}
-
-/**
- * Sniff the image type from magic bytes. We MUST NOT trust the Content-Type
- * stored on the R2 object: the screenshot was uploaded via an unbound presigned
- * PUT, so its stored content-type is attacker-controlled. Reflecting it (e.g.
- * text/html with a <script> payload) would be stored XSS on the first-party
- * origin when the publisher views it. Only a recognized image is ever served.
- */
-function sniffImageMime(b: Buffer): string | null {
-    if (b.length >= 4 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) {
-        return "image/png";
-    }
-    if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) {
-        return "image/jpeg";
-    }
-    if (
-        b.length >= 12 &&
-        b.toString("ascii", 0, 4) === "RIFF" &&
-        b.toString("ascii", 8, 12) === "WEBP"
-    ) {
-        return "image/webp";
-    }
-    if (b.length >= 6 && (b.toString("ascii", 0, 6) === "GIF87a" || b.toString("ascii", 0, 6) === "GIF89a")) {
-        return "image/gif";
-    }
-    return null;
 }
 
 /**
@@ -79,13 +53,5 @@ export async function GET(_request: Request, { params }: RouteParams): Promise<R
     // Not a recognized image — refuse rather than serve attacker-controlled bytes.
     if (!mime) return new Response(null, { status: 415 });
 
-    return new Response(new Uint8Array(bytes), {
-        headers: {
-            "Content-Type": mime,
-            "X-Content-Type-Options": "nosniff",
-            "Content-Disposition": "inline",
-            "Content-Security-Policy": "default-src 'none'; img-src 'self'; sandbox",
-            "Cache-Control": "private, max-age=300",
-        },
-    });
+    return new Response(new Uint8Array(bytes), { headers: safeImageHeaders(mime) });
 }

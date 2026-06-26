@@ -7,6 +7,7 @@ import { getCurrentPublisher } from "@/lib/auth/session";
 import { env } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { CaretRight, Package } from "@/components/ui/icon";
+import { AppIcon } from "@/components/ui/app-icon";
 
 export const metadata: Metadata = {
     title: "Apps",
@@ -21,15 +22,6 @@ function relativeTime(isoDate: string): string {
     const hours = Math.floor(mins / 60);
     if (hours < 24) return `${hours}h ago`;
     return `${Math.floor(hours / 24)}d ago`;
-}
-
-/** Two-letter monogram for an app avatar. */
-function monogram(name: string): string {
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    const first = parts[0] ?? "";
-    if (parts.length === 0) return "?";
-    if (parts.length === 1) return first.slice(0, 2).toUpperCase();
-    return ((first[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
 }
 
 /**
@@ -86,7 +78,7 @@ export default async function AppsPage() {
     // ── Fetch apps for this approved publisher ────────────────────────────────
     const { data: apps } = await admin
         .from("apps")
-        .select("id, name, package_name, created_at")
+        .select("id, name, package_name, created_at, icon_key")
         .eq("publisher_id", publisher.id)
         .order("created_at", { ascending: false });
 
@@ -128,9 +120,7 @@ export default async function AppsPage() {
                             href={`/dashboard/apps/${app.id}`}
                             className="card card-interactive group flex items-center gap-nd-md p-nd-md"
                         >
-                            <span className="flex items-center justify-center w-11 h-11 shrink-0 rounded-nd-card bg-nd-surface-raised border border-nd-border font-mono text-nd-body-sm font-semibold text-nd-text-primary">
-                                {monogram(app.name)}
-                            </span>
+                            <AppIcon appId={app.id} name={app.name} hasIcon={app.icon_key != null} size={44} />
                             <div className="min-w-0 flex-1">
                                 <p className="text-nd-body font-semibold text-nd-text-display truncate">
                                     {app.name}
