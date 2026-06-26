@@ -45,18 +45,21 @@ function formatDate(iso: string): string {
     });
 }
 
+const LABEL = "font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em]";
+const BTN =
+    "font-mono text-nd-label text-nd-text-display uppercase tracking-[0.08em] border border-nd-border px-nd-lg py-nd-sm rounded-nd-card-compact hover:border-nd-border-visible transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+
 export function ApiKeysClient({ initialKeys, plan: _plan, limit }: ApiKeysClientProps) {
     const [keys, setKeys] = useState<ApiKeyRow[]>(initialKeys);
     const [isPending, startTransition] = useTransition();
 
-    // Create form state
     const [showCreate, setShowCreate] = useState(false);
     const [createName, setCreateName] = useState("");
     const [createScopes, setCreateScopes] = useState<ApiKeyScope[]>(ALL_SCOPES);
     const [createError, setCreateError] = useState<string | null>(null);
     const [createdKey, setCreatedKey] = useState<{ plaintext: string; name: string } | null>(null);
+    const [copied, setCopied] = useState(false);
 
-    // Revoke state
     const [revokeError, setRevokeError] = useState<string | null>(null);
     const [revoking, setRevoking] = useState<string | null>(null);
 
@@ -66,6 +69,17 @@ export function ApiKeysClient({ initialKeys, plan: _plan, limit }: ApiKeysClient
         setCreateScopes((prev) =>
             prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope],
         );
+    }
+
+    async function copyKey() {
+        if (!createdKey) return;
+        try {
+            await navigator.clipboard.writeText(createdKey.plaintext);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // clipboard blocked — the key is still visible to copy by hand
+        }
     }
 
     function handleCreate() {
@@ -92,13 +106,11 @@ export function ApiKeysClient({ initialKeys, plan: _plan, limit }: ApiKeysClient
                 return;
             }
 
-            const json = (await res.json()) as {
-                key: ApiKeyRow;
-                plaintext_key: string;
-            };
+            const json = (await res.json()) as { key: ApiKeyRow; plaintext_key: string };
 
             setKeys((prev) => [json.key, ...prev]);
             setCreatedKey({ plaintext: json.plaintext_key, name: json.key.name });
+            setCopied(false);
             setCreateName("");
             setCreateScopes(ALL_SCOPES);
             setShowCreate(false);
@@ -111,7 +123,6 @@ export function ApiKeysClient({ initialKeys, plan: _plan, limit }: ApiKeysClient
 
         startTransition(async () => {
             const res = await fetch(`/api/v1/org/api-keys/${keyId}`, { method: "DELETE" });
-
             setRevoking(null);
 
             if (!res.ok) {
@@ -125,65 +136,57 @@ export function ApiKeysClient({ initialKeys, plan: _plan, limit }: ApiKeysClient
     }
 
     return (
-        <div className="space-y-6">
-            {/* ── One-time plaintext key display ─────────────────────────────── */}
+        <div className="space-y-nd-xl">
+            {/* One-time plaintext key */}
             {createdKey !== null && (
-                <div className="border border-[var(--border)] rounded-sm p-4 space-y-2 bg-[#0a0a0a]">
-                    <p className="font-mono text-[10px] tracking-[0.08em] uppercase text-[var(--text-secondary)]">
+                <div className="border border-nd-brand rounded-nd-card p-nd-lg space-y-nd-md bg-nd-surface">
+                    <p className="font-mono text-nd-label text-nd-brand-hover uppercase tracking-[0.08em]">
                         NEW KEY — COPY NOW · SHOWN ONCE
                     </p>
-                    <p className="font-sans text-sm text-[var(--text-secondary)]">
-                        This is the only time <span className="font-semibold">{createdKey.name}</span> will be shown.
-                        Store it somewhere safe — it cannot be recovered.
+                    <p className="font-body text-nd-body-sm text-nd-text-secondary">
+                        This is the only time{" "}
+                        <span className="text-nd-text-primary font-medium">{createdKey.name}</span> is
+                        shown. Store it somewhere safe. It cannot be recovered.
                     </p>
-                    <div className="flex items-center gap-2">
-                        <code className="flex-1 font-mono text-xs bg-[#111] border border-[var(--border)] rounded-sm px-3 py-2 text-[var(--text-primary)] overflow-x-auto">
+                    <div className="flex items-stretch gap-nd-sm">
+                        <code className="flex-1 min-w-0 truncate font-mono text-nd-caption bg-nd-black border border-nd-border rounded-nd-card-compact px-nd-md py-nd-sm text-nd-text-primary">
                             {createdKey.plaintext}
                         </code>
                         <button
                             type="button"
-                            onClick={() => { void navigator.clipboard.writeText(createdKey.plaintext); }}
-                            className="font-mono text-[10px] tracking-[0.08em] uppercase border border-[var(--border)] px-2.5 py-2 rounded-sm hover:bg-[var(--surface-hover)] transition-colors"
+                            onClick={() => void copyKey()}
+                            className={`shrink-0 ${BTN} ${copied ? "border-nd-brand text-nd-brand-hover" : ""}`}
                         >
-                            COPY
+                            {copied ? "COPIED ✓" : "COPY"}
                         </button>
                     </div>
                     <button
                         type="button"
                         onClick={() => setCreatedKey(null)}
-                        className="font-mono text-[10px] tracking-[0.08em] uppercase text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+                        className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] hover:text-nd-text-secondary transition-colors"
                     >
                         DISMISS
                     </button>
                 </div>
             )}
 
-            {/* ── Create button / form ─────────────────────────────────────────── */}
+            {/* Create button / form */}
             {!atLimit && !showCreate && (
-                <button
-                    type="button"
-                    onClick={() => setShowCreate(true)}
-                    className="font-mono text-[11px] tracking-[0.08em] uppercase border border-[var(--border)] px-3 py-2 rounded-sm hover:bg-[var(--surface-hover)] transition-colors"
-                >
+                <button type="button" onClick={() => setShowCreate(true)} className={BTN}>
                     + CREATE KEY
                 </button>
             )}
 
             {showCreate && (
-                <div className="border border-[var(--border)] rounded-sm p-4 space-y-4">
-                    <p className="font-mono text-[10px] tracking-[0.08em] uppercase text-[var(--text-secondary)]">
-                        NEW API KEY
-                    </p>
+                <div className="border border-nd-border rounded-nd-card p-nd-lg space-y-nd-lg">
+                    <p className={LABEL}>NEW API KEY</p>
 
                     {createError !== null && (
-                        <p className="font-sans text-sm text-[#D71921]">{createError}</p>
+                        <p className="font-mono text-nd-body text-nd-accent">[ {createError} ]</p>
                     )}
 
-                    <div className="space-y-1">
-                        <label
-                            htmlFor="key-name"
-                            className="font-mono text-[10px] tracking-[0.08em] uppercase text-[var(--text-secondary)]"
-                        >
+                    <div className="space-y-nd-xs">
+                        <label htmlFor="key-name" className={`${LABEL} block`}>
                             NAME
                         </label>
                         <input
@@ -192,28 +195,23 @@ export function ApiKeysClient({ initialKeys, plan: _plan, limit }: ApiKeysClient
                             value={createName}
                             onChange={(e) => setCreateName(e.target.value)}
                             placeholder="e.g. CI / CD pipeline"
-                            className="w-full bg-[#111] border border-[var(--border)] rounded-sm px-3 py-2 font-sans text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--text-secondary)]"
                             maxLength={80}
+                            className="w-full bg-transparent border border-nd-border focus:border-nd-border-visible outline-none rounded-nd-card-compact px-nd-md py-nd-sm font-mono text-nd-caption text-nd-text-primary placeholder:text-nd-text-disabled transition-colors"
                         />
                     </div>
 
-                    <div className="space-y-2">
-                        <p className="font-mono text-[10px] tracking-[0.08em] uppercase text-[var(--text-secondary)]">
-                            SCOPES
-                        </p>
-                        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                    <div className="space-y-nd-sm">
+                        <p className={LABEL}>SCOPES</p>
+                        <div className="grid grid-cols-2 gap-nd-sm sm:grid-cols-3">
                             {ALL_SCOPES.map((scope) => (
-                                <label
-                                    key={scope}
-                                    className="flex items-center gap-2 cursor-pointer group"
-                                >
+                                <label key={scope} className="flex items-center gap-nd-sm cursor-pointer group">
                                     <input
                                         type="checkbox"
                                         checked={createScopes.includes(scope)}
                                         onChange={() => toggleScope(scope)}
-                                        className="accent-[var(--text-primary)] w-3.5 h-3.5"
+                                        className="accent-nd-brand w-3.5 h-3.5"
                                     />
-                                    <span className="font-mono text-[10px] tracking-[0.06em] uppercase text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+                                    <span className="font-mono text-nd-label text-nd-text-secondary uppercase tracking-[0.06em] group-hover:text-nd-text-primary transition-colors">
                                         {SCOPE_LABELS[scope]}
                                     </span>
                                 </label>
@@ -221,19 +219,22 @@ export function ApiKeysClient({ initialKeys, plan: _plan, limit }: ApiKeysClient
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3 pt-1">
+                    <div className="flex items-center gap-nd-md pt-nd-xs">
                         <button
                             type="button"
                             onClick={handleCreate}
                             disabled={isPending}
-                            className="font-mono text-[11px] tracking-[0.08em] uppercase bg-[var(--text-primary)] text-[#000000] px-3 py-2 rounded-sm hover:bg-[var(--text-secondary)] disabled:opacity-50 transition-colors"
+                            className="font-mono text-nd-label uppercase tracking-[0.08em] bg-nd-brand text-nd-on-brand px-nd-lg py-nd-sm rounded-nd-card-compact hover:bg-nd-brand-hover disabled:opacity-50 transition-colors"
                         >
                             {isPending ? "CREATING…" : "CREATE KEY"}
                         </button>
                         <button
                             type="button"
-                            onClick={() => { setShowCreate(false); setCreateError(null); }}
-                            className="font-mono text-[10px] tracking-[0.08em] uppercase text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+                            onClick={() => {
+                                setShowCreate(false);
+                                setCreateError(null);
+                            }}
+                            className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] hover:text-nd-text-secondary transition-colors"
                         >
                             CANCEL
                         </button>
@@ -241,36 +242,40 @@ export function ApiKeysClient({ initialKeys, plan: _plan, limit }: ApiKeysClient
                 </div>
             )}
 
-            {/* ── Error from revoke ─────────────────────────────────────────────── */}
             {revokeError !== null && (
-                <p className="font-sans text-sm text-[#D71921]">{revokeError}</p>
+                <p className="font-mono text-nd-body text-nd-accent">[ {revokeError} ]</p>
             )}
 
-            {/* ── Key list ──────────────────────────────────────────────────────── */}
+            {/* Key list */}
             {keys.length === 0 ? (
-                <p className="font-sans text-sm text-[var(--text-tertiary)]">
-                    No API keys yet. Create one to authenticate the SDK or CI/CD pipeline.
+                <p className="font-body text-nd-body-sm text-nd-text-disabled">
+                    No API keys yet. Create one to authenticate the SDK or your CI pipeline.
                 </p>
             ) : (
-                <div className="divide-y divide-[var(--border)]">
+                <div className="border-t border-nd-border">
                     {keys.map((key) => (
-                        <div key={key.id} className="py-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="space-y-1.5">
-                                <p className="font-sans text-sm font-medium text-[var(--text-primary)]">{key.name}</p>
-                                <code className="font-mono text-[11px] text-[var(--text-secondary)]">
-                                    {key.key_prefix}••••••••••••••••••••••••••••••••
+                        <div
+                            key={key.id}
+                            className="py-nd-md flex flex-col gap-nd-sm sm:flex-row sm:items-start sm:justify-between border-b border-nd-border"
+                        >
+                            <div className="space-y-nd-xs min-w-0">
+                                <p className="font-body text-nd-body-sm font-medium text-nd-text-primary">
+                                    {key.name}
+                                </p>
+                                <code className="font-mono text-nd-caption text-nd-text-secondary">
+                                    {key.key_prefix}••••••••••••••••••••••••
                                 </code>
-                                <div className="flex flex-wrap gap-1">
+                                <div className="flex flex-wrap gap-nd-xs">
                                     {key.scopes.map((scope) => (
                                         <span
                                             key={scope}
-                                            className="font-mono text-[9px] tracking-[0.06em] uppercase text-[var(--text-tertiary)] border border-[var(--border)] px-1.5 py-0.5 rounded-sm"
+                                            className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.06em] border border-nd-border px-nd-xs py-0.5 rounded-nd-card-compact"
                                         >
                                             {scope}
                                         </span>
                                     ))}
                                 </div>
-                                <p className="font-mono text-[10px] tracking-[0.04em] text-[var(--text-tertiary)]">
+                                <p className="font-mono text-nd-label text-nd-text-disabled tracking-[0.04em]">
                                     CREATED {formatDate(key.created_at)}
                                     {key.last_used_at !== null && ` · LAST USED ${formatDate(key.last_used_at)}`}
                                 </p>
@@ -279,7 +284,7 @@ export function ApiKeysClient({ initialKeys, plan: _plan, limit }: ApiKeysClient
                                 type="button"
                                 onClick={() => handleRevoke(key.id)}
                                 disabled={revoking === key.id || isPending}
-                                className="shrink-0 font-mono text-[10px] tracking-[0.08em] uppercase text-[#D71921] border border-[#D71921]/30 px-2.5 py-1.5 rounded-sm hover:bg-[#D71921]/5 disabled:opacity-50 transition-colors"
+                                className="shrink-0 font-mono text-nd-label text-nd-accent uppercase tracking-[0.08em] border border-nd-border px-nd-md py-nd-sm rounded-nd-card-compact hover:border-nd-accent disabled:opacity-50 transition-colors"
                             >
                                 {revoking === key.id ? "REVOKING…" : "REVOKE"}
                             </button>

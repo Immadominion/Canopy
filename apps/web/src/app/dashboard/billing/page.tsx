@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -41,16 +42,7 @@ function formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 }
 
-/**
- * /dashboard/billing — Billing plan overview and Stripe portal access.
- *
- * Nothing Design three-layer hierarchy:
- *   Layer 1 (Primary):   Current plan — dot-grid hero
- *   Layer 2 (Secondary): Subscription status + renewal date
- *   Layer 3 (Tertiary):  Plan feature summary + upgrade / manage links
- *
- * Accent red: current plan tier badge.
- */
+/** /dashboard/billing — plan overview + USDC upgrade/extend. */
 export default async function BillingPage() {
     const publisher = await getCurrentPublisher();
     if (!publisher) notFound();
@@ -63,25 +55,23 @@ export default async function BillingPage() {
         .eq("owner_id", publisher.id)
         .maybeSingle();
 
-    // No organization yet → don't 404; guide the user to create one. Billing is
-    // org-scoped (plans/subscriptions attach to an organization).
+    // No organization yet → guide the user to create one (billing is org-scoped).
     if (!org) {
         return (
             <div className="max-w-3xl mx-auto">
-                <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] mb-nd-lg">
+                <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] mb-nd-xs">
                     BILLING
                 </p>
-                <p className="font-body text-nd-body text-nd-text-secondary mb-nd-xl max-w-xl">
-                    You&apos;re on the <span className="text-nd-text-primary">Free</span> plan.
-                    Billing is managed per organization — create one to add teammates and unlock
-                    paid plans.
+                <h1 className="font-body text-nd-display-md text-nd-text-display leading-tight">Free plan</h1>
+                <p className="font-body text-nd-body-sm text-nd-text-secondary mt-nd-md mb-nd-xl max-w-xl leading-relaxed">
+                    Billing is per organization. Create one to add teammates and move to a paid plan.
                 </p>
-                <a
+                <Link
                     href="/dashboard/org/create"
-                    className="inline-block font-mono text-nd-label text-nd-black bg-nd-text-display uppercase tracking-[0.08em] px-nd-lg py-nd-sm rounded-md"
+                    className="inline-block font-mono text-nd-label uppercase tracking-[0.08em] bg-nd-brand text-nd-on-brand px-nd-lg py-nd-sm rounded-nd-card-compact hover:bg-nd-brand-hover transition-colors"
                 >
                     CREATE ORGANIZATION →
-                </a>
+                </Link>
             </div>
         );
     }
@@ -91,127 +81,120 @@ export default async function BillingPage() {
     const cfg = getBillingConfig();
 
     return (
-        <div className="min-h-full bg-black text-nd-text-primary">
-            {/* ── dot-grid hero ──────────────────────────────────────────────────── */}
-            <div
-                className="relative border-b border-nd-border-subtle px-6 py-12"
-                style={{
-                    backgroundImage:
-                        "radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)",
-                    backgroundSize: "20px 20px",
-                }}
-            >
-                <p className="font-mono text-[10px] tracking-[0.08em] uppercase text-nd-text-secondary mb-3">
-                    Billing
+        <div className="max-w-3xl mx-auto">
+            <header className="mb-nd-2xl">
+                <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] mb-nd-xs">
+                    BILLING
                 </p>
-
-                <div className="flex items-end gap-4">
-                    <h1 className="font-grotesk text-3xl font-semibold text-nd-text-primary">
-                        {PLAN_LABELS[billing.plan]}
+                <div className="flex items-end gap-nd-md flex-wrap">
+                    <h1 className="font-body text-nd-display-md text-nd-text-display leading-tight">
+                        {PLAN_LABELS[billing.plan]} plan
                     </h1>
                     {billing.subscription_status && (
                         <span
-                            className={`font-mono text-[10px] tracking-[0.08em] uppercase border px-2 py-0.5 mb-1 ${isActive
-                                    ? "border-nd-accent text-nd-accent"
-                                    : "border-nd-border-visible text-nd-text-secondary"
-                                }`}
+                            className={`font-mono text-nd-label uppercase tracking-[0.08em] border px-nd-sm py-0.5 rounded-nd-card-compact mb-1 ${
+                                isActive
+                                    ? "border-nd-brand text-nd-brand-hover"
+                                    : "border-nd-border text-nd-text-secondary"
+                            }`}
                         >
                             {STATUS_LABEL[billing.subscription_status] ?? billing.subscription_status}
                         </span>
                     )}
                 </div>
-
                 {billing.current_period_end && (
-                    <p className="mt-2 font-mono text-[11px] text-nd-text-tertiary">
+                    <p className="font-mono text-nd-caption text-nd-text-disabled mt-nd-sm">
                         {billing.cancel_at_period_end ? "Cancels" : "Renews"}{" "}
                         {formatDate(billing.current_period_end)}
                     </p>
                 )}
-            </div>
+            </header>
 
-            <div className="px-6 py-8 max-w-2xl space-y-10">
-
-                {/* ── plan summary ────────────────────────────────────────────────── */}
-                <section>
-                    <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-nd-text-secondary mb-4">
-                        Plan features
-                    </p>
-                    <div className="border border-nd-border-subtle divide-y divide-nd-border-subtle">
-                        {PLAN_FEATURES[billing.plan].map(({ feature, value }) => (
-                            <div key={feature} className="flex items-center justify-between px-4 py-3">
-                                <p className="font-mono text-xs text-nd-text-secondary">{feature}</p>
-                                <p className="font-mono text-xs text-nd-text-primary">{value}</p>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-
-                {/* ── upgrade / extend — on-chain USDC ────────────────────────────── */}
-                <section className="space-y-3">
-                    {!cfg ? (
-                        <p className="font-mono text-xs text-nd-text-secondary">
-                            On-chain billing isn&apos;t configured yet. Set CANOPY_MERCHANT_WALLET to
-                            enable USDC subscriptions.
-                        </p>
-                    ) : billing.plan === "free" ? (
-                        <div className="border border-nd-border-subtle p-4 space-y-5 rounded-lg">
-                            <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-nd-text-secondary">
-                                Upgrade — pay in USDC on Solana
-                            </p>
-
-                            <div className="space-y-2">
-                                <p className="font-grotesk text-sm text-nd-text-primary">
-                                    Pro — ${priceUsd("pro", "monthly")} / mo
-                                </p>
-                                <p className="font-grotesk text-xs text-nd-text-secondary">
-                                    10M events, 5 team members, funnels &amp; retention, remote config.
-                                </p>
-                                <SubscribeWithUsdc
-                                    plan="pro"
-                                    interval="monthly"
-                                    priceUsd={priceUsd("pro", "monthly")}
-                                    merchantWallet={cfg.merchantWallet.toBase58()}
-                                    usdcMint={cfg.usdcMint.toBase58()}
-                                    rpcUrl={cfg.rpcUrl}
-                                />
-                            </div>
-
-                            <div className="space-y-2 pt-4 border-t border-nd-border-subtle">
-                                <p className="font-grotesk text-sm text-nd-text-primary">
-                                    Enterprise — ${priceUsd("enterprise", "monthly")} / mo
-                                </p>
-                                <SubscribeWithUsdc
-                                    plan="enterprise"
-                                    interval="monthly"
-                                    priceUsd={priceUsd("enterprise", "monthly")}
-                                    merchantWallet={cfg.merchantWallet.toBase58()}
-                                    usdcMint={cfg.usdcMint.toBase58()}
-                                    rpcUrl={cfg.rpcUrl}
-                                />
-                            </div>
-
-                            <p className="font-mono text-[10px] text-nd-text-tertiary">
-                                A one-time USDC payment extends your plan 30 days. No auto-renew —
-                                pay again to extend.
-                            </p>
+            {/* Plan features */}
+            <section className="mb-nd-2xl">
+                <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] mb-nd-md">
+                    PLAN FEATURES
+                </p>
+                <div className="border border-nd-border rounded-nd-card overflow-hidden">
+                    {PLAN_FEATURES[billing.plan].map(({ feature, value }, i) => (
+                        <div
+                            key={feature}
+                            className={`flex items-center justify-between px-nd-md py-nd-sm ${
+                                i > 0 ? "border-t border-nd-border" : ""
+                            }`}
+                        >
+                            <p className="font-body text-nd-body-sm text-nd-text-secondary">{feature}</p>
+                            <p className="font-mono text-nd-caption text-nd-text-primary">{value}</p>
                         </div>
-                    ) : (
-                        <div className="border border-nd-border-subtle p-4 space-y-3 rounded-lg">
-                            <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-nd-text-secondary">
-                                Extend your {PLAN_LABELS[billing.plan]} plan — USDC
+                    ))}
+                </div>
+            </section>
+
+            {/* Upgrade / extend — on-chain USDC */}
+            <section className="space-y-nd-md">
+                {!cfg ? (
+                    <p className="font-mono text-nd-caption text-nd-text-secondary">
+                        On-chain billing isn&apos;t configured yet. Set CANOPY_MERCHANT_WALLET to enable
+                        USDC subscriptions.
+                    </p>
+                ) : billing.plan === "free" ? (
+                    <div className="border border-nd-border rounded-nd-card p-nd-lg space-y-nd-lg">
+                        <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em]">
+                            UPGRADE — PAY IN USDC ON SOLANA
+                        </p>
+
+                        <div className="space-y-nd-sm">
+                            <p className="font-body text-nd-body-sm text-nd-text-primary font-medium">
+                                Pro — ${priceUsd("pro", "monthly")} / mo
+                            </p>
+                            <p className="font-body text-nd-caption text-nd-text-secondary">
+                                10M events, 5 team members, funnels and retention, remote config.
                             </p>
                             <SubscribeWithUsdc
-                                plan={billing.plan}
+                                plan="pro"
                                 interval="monthly"
-                                priceUsd={priceUsd(billing.plan, "monthly")}
+                                priceUsd={priceUsd("pro", "monthly")}
                                 merchantWallet={cfg.merchantWallet.toBase58()}
                                 usdcMint={cfg.usdcMint.toBase58()}
                                 rpcUrl={cfg.rpcUrl}
                             />
                         </div>
-                    )}
-                </section>
-            </div>
+
+                        <div className="space-y-nd-sm pt-nd-md border-t border-nd-border">
+                            <p className="font-body text-nd-body-sm text-nd-text-primary font-medium">
+                                Enterprise — ${priceUsd("enterprise", "monthly")} / mo
+                            </p>
+                            <SubscribeWithUsdc
+                                plan="enterprise"
+                                interval="monthly"
+                                priceUsd={priceUsd("enterprise", "monthly")}
+                                merchantWallet={cfg.merchantWallet.toBase58()}
+                                usdcMint={cfg.usdcMint.toBase58()}
+                                rpcUrl={cfg.rpcUrl}
+                            />
+                        </div>
+
+                        <p className="font-mono text-nd-label text-nd-text-disabled">
+                            A one-time USDC payment extends your plan 30 days. No auto-renew, pay again to
+                            extend.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="border border-nd-border rounded-nd-card p-nd-lg space-y-nd-md">
+                        <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em]">
+                            EXTEND YOUR {PLAN_LABELS[billing.plan].toUpperCase()} PLAN — USDC
+                        </p>
+                        <SubscribeWithUsdc
+                            plan={billing.plan}
+                            interval="monthly"
+                            priceUsd={priceUsd(billing.plan, "monthly")}
+                            merchantWallet={cfg.merchantWallet.toBase58()}
+                            usdcMint={cfg.usdcMint.toBase58()}
+                            rpcUrl={cfg.rpcUrl}
+                        />
+                    </div>
+                )}
+            </section>
         </div>
     );
 }

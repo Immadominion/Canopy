@@ -24,16 +24,7 @@ interface ApiKeyRow {
     created_at: string;
 }
 
-/**
- * /dashboard/settings/api-keys
- *
- * Nothing Design three-layer hierarchy:
- *  · Primary  — hero: key count vs limit + plan badge
- *  · Secondary — key list with prefix, name, scopes, usage timestamps
- *  · Tertiary  — create / revoke actions
- *
- * One dot-grid hero. One accent red (limit badge only). No shadows.
- */
+/** /dashboard/settings/api-keys — keys the SDK and CI use to send analytics + deploy. */
 export default async function ApiKeysPage(): Promise<React.ReactElement> {
     const publisher = await getCurrentPublisher();
     if (!publisher) notFound();
@@ -50,26 +41,27 @@ export default async function ApiKeysPage(): Promise<React.ReactElement> {
         console.error("[api-keys page] org error", orgError);
         notFound();
     }
+
     if (!org) {
         return (
-            <main className="min-h-full bg-[#000000] text-[var(--text-primary)]">
-                <section className="max-w-3xl mx-auto px-6 py-16">
-                    <p className="font-mono text-[10px] tracking-[0.08em] uppercase text-[var(--text-tertiary)] mb-3">
-                        SETTINGS · API KEYS
-                    </p>
-                    <h1 className="font-display text-3xl font-bold tracking-tight mb-4">API Keys</h1>
-                    <p className="font-sans text-sm text-[var(--text-secondary)] leading-relaxed max-w-prose mb-8">
-                        API keys live under an organization, and you don&apos;t have one yet. Create your
-                        organization first, then come back here to make a key for your SDK.
-                    </p>
-                    <Link
-                        href="/dashboard/org/create"
-                        className="inline-block font-mono text-[11px] tracking-[0.08em] uppercase border border-[var(--border)] px-4 py-2 rounded-sm hover:border-[var(--text-tertiary)] transition-colors"
-                    >
-                        Create organization →
-                    </Link>
-                </section>
-            </main>
+            <div className="max-w-3xl mx-auto">
+                <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] mb-nd-xs">
+                    SETTINGS · API KEYS
+                </p>
+                <h1 className="font-body text-nd-display-md text-nd-text-display leading-tight">
+                    API Keys
+                </h1>
+                <p className="font-body text-nd-body-sm text-nd-text-secondary mt-nd-md max-w-prose leading-relaxed">
+                    API keys live under an organization, and you don&apos;t have one yet. Create your
+                    organization first, then come back here to make a key for your SDK.
+                </p>
+                <Link
+                    href="/dashboard/org/create"
+                    className="inline-block mt-nd-xl font-mono text-nd-label text-nd-text-display uppercase tracking-[0.08em] border border-nd-border px-nd-lg py-nd-sm rounded-nd-card-compact hover:border-nd-border-visible transition-colors"
+                >
+                    Create organization →
+                </Link>
+            </div>
         );
     }
 
@@ -103,52 +95,34 @@ export default async function ApiKeysPage(): Promise<React.ReactElement> {
     const minPlan = requiredPlan("maxApiKeys");
 
     return (
-        <main className="min-h-full bg-[#000000] text-[var(--text-primary)]">
-            {/* ── Hero ─────────────────────────────────────────────────────────── */}
-            <section className="relative overflow-hidden border-b border-[var(--border)] px-6 py-12">
-                {/* Dot-grid — ONE per page */}
-                <div
-                    aria-hidden="true"
-                    className="absolute inset-0 opacity-[0.04]"
-                    style={{
-                        backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)",
-                        backgroundSize: "24px 24px",
-                    }}
-                />
-
-                <div className="relative max-w-3xl">
-                    {/* Tertiary label */}
-                    <p className="font-mono text-[10px] tracking-[0.08em] uppercase text-[var(--text-tertiary)] mb-3">
-                        SETTINGS · API KEYS
+        <div className="max-w-3xl mx-auto">
+            <header className="mb-nd-2xl">
+                <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] mb-nd-xs">
+                    SETTINGS · API KEYS
+                </p>
+                <h1 className="font-body text-nd-display-md text-nd-text-display leading-tight">
+                    API Keys
+                </h1>
+                <div className="flex items-center gap-nd-md mt-nd-sm">
+                    <p className="font-mono text-nd-caption text-nd-text-secondary">
+                        {String(keys.length)}
+                        {maxKeys !== null && (
+                            <>
+                                {" "}
+                                <span className="text-nd-text-disabled">/</span>{" "}
+                                <span className={atLimit ? "text-nd-accent" : ""}>{String(maxKeys)}</span>
+                            </>
+                        )}{" "}
+                        ACTIVE
                     </p>
-
-                    {/* Primary — page title */}
-                    <h1 className="font-display text-3xl font-bold tracking-tight mb-4">API Keys</h1>
-
-                    {/* Secondary — count + plan */}
-                    <div className="flex items-center gap-4">
-                        <p className="font-mono text-[11px] tracking-[0.08em] text-[var(--text-secondary)]">
-                            {keys.length.toString()}
-                            {maxKeys !== null && (
-                                <>
-                                    {" "}
-                                    <span className="text-[var(--text-tertiary)]">/</span>{" "}
-                                    <span className={atLimit ? "text-[#D71921]" : ""}>{maxKeys.toString()}</span>
-                                </>
-                            )}{" "}
-                            ACTIVE
-                        </p>
-                        <span className="font-mono text-[10px] tracking-[0.06em] uppercase text-[var(--text-tertiary)] border border-[var(--border)] px-1.5 py-0.5 rounded-sm">
-                            {planName} plan
-                        </span>
-                    </div>
+                    <span className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.06em] border border-nd-border px-nd-sm py-0.5 rounded-nd-card-compact">
+                        {planName} PLAN
+                    </span>
                 </div>
-            </section>
+            </header>
 
-            {/* ── Body ─────────────────────────────────────────────────────────── */}
-            <section className="max-w-3xl mx-auto px-6 py-10 space-y-8">
-                {/* Upgrade prompt if at limit */}
-                {atLimit && maxKeys !== null && (
+            {atLimit && maxKeys !== null && (
+                <div className="mb-nd-xl">
                     <UpgradePrompt
                         feature="API keys"
                         currentPlan={plan}
@@ -156,23 +130,21 @@ export default async function ApiKeysPage(): Promise<React.ReactElement> {
                         currentLimit={maxKeys}
                         description="Revoke unused keys to free up slots, or upgrade for more."
                     />
-                )}
-
-                {/* Description */}
-                <div className="space-y-1">
-                    <p className="font-mono text-[10px] tracking-[0.08em] uppercase text-[var(--text-secondary)]">
-                        ABOUT API KEYS
-                    </p>
-                    <p className="font-sans text-sm text-[var(--text-secondary)] leading-relaxed max-w-prose">
-                        API keys authenticate requests from your SDK, CI/CD pipeline, and integrations.
-                        Each key is shown once at creation and cannot be recovered — store it securely.
-                        Revoke compromised keys immediately.
-                    </p>
                 </div>
+            )}
 
-                {/* Interactive key list + create form */}
-                <ApiKeysClient initialKeys={keys} plan={plan} limit={maxKeys} />
-            </section>
-        </main>
+            <div className="mb-nd-xl">
+                <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] mb-nd-sm">
+                    ABOUT API KEYS
+                </p>
+                <p className="font-body text-nd-body-sm text-nd-text-secondary leading-relaxed max-w-prose">
+                    API keys authenticate requests from your SDK, CI pipeline, and integrations. Each key
+                    is shown once at creation and cannot be recovered, so store it safely. Revoke a
+                    compromised key right away.
+                </p>
+            </div>
+
+            <ApiKeysClient initialKeys={keys} plan={plan} limit={maxKeys} />
+        </div>
     );
 }

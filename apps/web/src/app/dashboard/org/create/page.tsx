@@ -1,13 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 /**
  * /dashboard/org/create — Create an organisation.
- *
  * Posts to POST /api/v1/org and redirects to /dashboard/org on success.
- * Nothing Design: minimal form, one accent CTA.
  */
 export default function CreateOrgPage() {
     const router = useRouter();
@@ -37,54 +36,61 @@ export default function CreateOrgPage() {
     }
 
     return (
-        <div className="min-h-full bg-black text-nd-text-primary">
-            {/* header */}
-            <div className="border-b border-nd-border-subtle px-6 py-8">
-                <p className="font-mono text-[10px] tracking-[0.08em] uppercase text-nd-text-secondary mb-2">
-                    Organisation
+        <div className="max-w-2xl mx-auto">
+            <header className="mb-nd-2xl">
+                <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] mb-nd-xs">
+                    ORGANIZATION
                 </p>
-                <h1 className="font-grotesk text-2xl font-semibold">Create organisation</h1>
-            </div>
+                <h1 className="font-body text-nd-display-md text-nd-text-display leading-tight">
+                    Create organization
+                </h1>
+                <p className="font-body text-nd-body-sm text-nd-text-secondary mt-nd-sm max-w-prose leading-relaxed">
+                    Your organization holds your apps, team, API keys, and plan. You need one to make
+                    API keys and send analytics.
+                </p>
+            </header>
 
-            <div className="px-6 py-8 max-w-md">
-                <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-6">
-                    <div className="space-y-2">
-                        <label className="font-mono text-[10px] uppercase tracking-[0.08em] text-nd-text-secondary block">
-                            Organisation name
-                        </label>
-                        <input
-                            type="text"
-                            required
-                            minLength={2}
-                            maxLength={100}
-                            value={name}
-                            onChange={(e) => { setName(e.target.value); }}
-                            placeholder="Acme Labs"
-                            className="w-full bg-transparent border border-nd-border-visible px-3 py-2 font-mono text-sm text-nd-text-primary placeholder:text-nd-text-tertiary focus:outline-none focus:border-nd-text-secondary transition-colors"
-                        />
-                    </div>
+            <form onSubmit={(e) => void handleSubmit(e)} className="space-y-nd-lg max-w-md">
+                <div className="space-y-nd-xs">
+                    <label
+                        htmlFor="org-name"
+                        className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] block"
+                    >
+                        ORGANIZATION NAME
+                    </label>
+                    <input
+                        id="org-name"
+                        type="text"
+                        required
+                        minLength={2}
+                        maxLength={100}
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Acme Labs"
+                        className="w-full bg-transparent border border-nd-border focus:border-nd-border-visible outline-none rounded-nd-card-compact px-nd-md py-nd-sm font-mono text-nd-caption text-nd-text-primary placeholder:text-nd-text-disabled transition-colors"
+                    />
+                </div>
 
-                    {status === "error" && (
-                        <p className="font-mono text-[10px] text-nd-accent">{errorMsg}</p>
-                    )}
+                {status === "error" && (
+                    <p className="font-mono text-nd-body text-nd-accent">[ {errorMsg} ]</p>
+                )}
 
-                    <div className="flex items-center gap-4 pt-2">
-                        <button
-                            type="submit"
-                            disabled={status === "loading"}
-                            className="font-mono text-[10px] uppercase tracking-[0.08em] bg-nd-accent text-white px-6 py-2.5 disabled:opacity-50 transition-opacity"
-                        >
-                            {status === "loading" ? "Creating…" : "Create organisation"}
-                        </button>
-                        <a
-                            href="/dashboard"
-                            className="font-mono text-[10px] uppercase tracking-[0.08em] text-nd-text-tertiary hover:text-nd-text-secondary transition-colors"
-                        >
-                            Cancel
-                        </a>
-                    </div>
-                </form>
-            </div>
+                <div className="flex items-center gap-nd-md pt-nd-xs">
+                    <button
+                        type="submit"
+                        disabled={status === "loading"}
+                        className="font-mono text-nd-label uppercase tracking-[0.08em] bg-nd-brand text-nd-on-brand px-nd-lg py-nd-sm rounded-nd-card-compact hover:bg-nd-brand-hover disabled:opacity-50 transition-colors"
+                    >
+                        {status === "loading" ? "CREATING…" : "CREATE ORGANIZATION"}
+                    </button>
+                    <Link
+                        href="/dashboard/apps"
+                        className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] hover:text-nd-text-secondary transition-colors"
+                    >
+                        CANCEL
+                    </Link>
+                </div>
+            </form>
         </div>
     );
 }
