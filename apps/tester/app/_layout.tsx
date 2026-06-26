@@ -26,6 +26,11 @@ export default function RootLayout(): React.JSX.Element {
                 <Stack.Screen name="connect" options={{ headerShown: false }} />
                 {/* detail keeps the native header for the back chevron. */}
                 <Stack.Screen name="beta/[trackId]" options={{ title: "", headerBackTitle: "Apps" }} />
+                {/* feedback — a pushed screen, back to the detail. */}
+                <Stack.Screen
+                    name="beta/[trackId]/feedback"
+                    options={{ title: "Send feedback", headerBackTitle: "Back" }}
+                />
             </Stack>
         </CanopyProvider>
     );

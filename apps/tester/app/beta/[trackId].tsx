@@ -18,12 +18,13 @@ import { installer } from "@/native/installer";
 import {
     AppAvatar,
     Chip,
-    PrimaryButton,
+    GhostRow,
+    InstallPill,
     ProgressBar,
     SecondaryButton,
     SectionLabel,
 } from "@/ui/components";
-import { FeedbackForm } from "@/ui/feedback-form";
+import { InstallStatusStrip } from "@/ui/install-status-strip";
 import { formatBytes } from "@/ui/format";
 import { colors, mono, space, type ChipTone } from "@/ui/theme";
 
@@ -39,28 +40,24 @@ function deriveMode(installed: number | null | undefined, target: number): Insta
     return installed < target ? "update" : "current";
 }
 
-function installButtonLabel(step: InstallStep | null, mode: InstallMode): string {
+/** The header status line while an install is in progress. */
+function busyStatusText(
+    step: InstallStep | null,
+    downloadPct: number,
+    sizeBytes: number | null,
+    mode: InstallMode,
+): string {
     switch (step) {
         case "preparing":
             return "PREPARING…";
         case "downloading":
-            return "DOWNLOADING…";
+            return `${String(Math.round(downloadPct * 100))}% · ${formatBytes(sizeBytes)}`;
         case "verifying":
-            return "VERIFYING FINGERPRINT…";
+            return "VERIFYING…";
         case "installing":
             return mode === "update" ? "UPDATING…" : "INSTALLING…";
-        case "done":
-            return "INSTALLED ✓";
         default:
-            break;
-    }
-    switch (mode) {
-        case "update":
-            return "UPDATE";
-        case "current":
-            return "INSTALLED ✓";
-        default:
-            return "INSTALL";
+            return "";
     }
 }
 
@@ -241,9 +238,9 @@ export default function BetaDetailScreen(): React.JSX.Element | null {
         <ScrollView style={styles.root} contentContainerStyle={styles.content}>
             <StatusBar style="light" />
 
-            {/* Header */}
+            {/* Header — app identity + the compact install pill on the right */}
             <View style={styles.head}>
-                <AppAvatar name={beta.appName} iconUri={beta.iconUrl} size={72} />
+                <AppAvatar name={beta.appName} iconUri={beta.iconUrl} size={64} />
                 <View style={styles.headBody}>
                     <Text style={styles.appName} numberOfLines={2}>
                         {beta.appName}
@@ -252,76 +249,85 @@ export default function BetaDetailScreen(): React.JSX.Element | null {
                         {beta.versionName} ({beta.versionCode})
                     </Text>
                     <View style={styles.chipRow}>
-                        <Chip label={chip.label} tone={chip.tone} />
+                        {busy ? (
+                            <Text style={styles.busyStatus}>
+                                {busyStatusText(step, downloadPct, beta.apkSizeBytes, mode)}
+                            </Text>
+                        ) : (
+                            <Chip label={chip.label} tone={chip.tone} />
+                        )}
                     </View>
                 </View>
+                {isActive ? (
+                    busy ? (
+                        <InstallPill
+                            tone="brand"
+                            busy
+                            icon="arrow-down"
+                            label=""
+                            progressLabel={
+                                step === "downloading" ? `${String(Math.round(downloadPct * 100))}%` : "…"
+                            }
+                        />
+                    ) : installError ? (
+                        <InstallPill
+                            tone="retry"
+                            icon="refresh"
+                            label="RETRY"
+                            onPress={() => void handleInstall()}
+                        />
+                    ) : mode === "current" ? (
+                        <InstallPill tone="success" icon="checkmark" label="INSTALLED" disabled />
+                    ) : mode === "update" ? (
+                        <InstallPill
+                            tone="brand"
+                            icon="arrow-up"
+                            label="UPDATE"
+                            onPress={() => void handleInstall()}
+                        />
+                    ) : (
+                        <InstallPill
+                            tone="brand"
+                            icon="arrow-down"
+                            label="INSTALL"
+                            onPress={() => void handleInstall()}
+                        />
+                    )
+                ) : null}
             </View>
+
+            {/* Progress underline — hairline under the header while installing */}
+            {busy ? (
+                <View style={styles.progressUnderline}>
+                    <ProgressBar
+                        pct={step === "downloading" ? Math.round(downloadPct * 100) : stepPct(step)}
+                    />
+                </View>
+            ) : null}
 
             {isActive ? (
                 <>
-                    {/* Primary action */}
-                    <PrimaryButton
-                        label={installButtonLabel(step, mode)}
-                        onPress={() => void handleInstall()}
-                        busy={busy}
-                        disabled={isInstalled && !busy}
-                        style={styles.installButton}
-                    />
-
-                    {/* Update context — what you have vs what's available. */}
-                    {mode === "update" && installedVersion != null ? (
-                        <Text style={styles.updateNote}>
-                            You have build {installedVersion} · build {beta.versionCode} is available.
-                        </Text>
-                    ) : null}
-
-                    {/* Live install progress — real % while downloading, step-based otherwise */}
-                    {step && step !== "done" ? (
-                        <View style={styles.progressWrap}>
-                            <ProgressBar
-                                pct={
-                                    step === "downloading"
-                                        ? Math.round(downloadPct * 100)
-                                        : stepPct(step)
-                                }
-                            />
-                            {step === "downloading" ? (
-                                <Text style={styles.progressText}>
-                                    {Math.round(downloadPct * 100)}% · {formatBytes(beta.apkSizeBytes)}
-                                </Text>
-                            ) : null}
-                        </View>
-                    ) : null}
-
-                    {/* One-time install-permission heads-up (Android "install unknown apps") */}
+                    {/* One-time install-permission heads-up */}
                     {!busy && !isInstalled && installer.isAvailable() && !installer.canInstall() ? (
                         <Text style={styles.permNote}>
-                            The first install will ask you to allow Canopy to install apps —
-                            Android&apos;s one-time &ldquo;install unknown apps&rdquo; permission.
-                            After that, installs are one tap.
+                            First install asks Android to allow Canopy to install apps — one tap after that.
                         </Text>
                     ) : null}
 
-                    {/* Install failure — real reason + actionable guidance + recovery */}
-                    {installError ? (
-                        <View style={styles.errorBlock}>
-                            <Text style={styles.error}>[ ERROR: {installError} ]</Text>
-                            {installHint ? <Text style={styles.hint}>{installHint}</Text> : null}
-                            {installDetail ? (
-                                <Text style={styles.detailMono}>{installDetail}</Text>
-                            ) : null}
-                            {installError === "SIGNATURE_MISMATCH" && beta.packageName ? (
-                                <SecondaryButton
-                                    label="REMOVE OLD COPY"
-                                    tone="danger"
-                                    busy={removing}
-                                    onPress={() => void handleRemove()}
-                                    style={styles.removeButton}
-                                />
-                            ) : null}
-                            {removeError ? <Text style={styles.error}>[ {removeError} ]</Text> : null}
-                        </View>
-                    ) : null}
+                    {/* Update note + install failure + signature-mismatch recovery */}
+                    <InstallStatusStrip
+                        busy={busy}
+                        mode={mode}
+                        installedVersion={installedVersion ?? null}
+                        targetVersion={beta.versionCode}
+                        installError={installError}
+                        installHint={installHint}
+                        installDetail={installDetail}
+                        packageName={beta.packageName}
+                        removing={removing}
+                        removeError={removeError}
+                        onRemove={() => void handleRemove()}
+                    />
                 </>
             ) : (
                 /* Revoked / expired — no install; offer removal if still on device. */
@@ -374,9 +380,17 @@ export default function BetaDetailScreen(): React.JSX.Element | null {
                 </View>
             ) : null}
 
-            {/* Send feedback (active betas only) */}
+            {/* Send feedback — quiet subordinate row → dedicated screen */}
             {isActive ? (
-                <FeedbackForm trackId={beta.trackId} versionCode={beta.versionCode} />
+                <View style={styles.feedbackRow}>
+                    <GhostRow
+                        icon="create-outline"
+                        label="Send feedback to the developer"
+                        onPress={() => {
+                            router.push(`/beta/${beta.trackId}/feedback?v=${String(beta.versionCode)}`);
+                        }}
+                    />
+                </View>
             ) : null}
 
             {/* Details */}
@@ -417,36 +431,19 @@ const styles = StyleSheet.create({
     appName: { fontSize: 22, fontWeight: "700", color: colors.textPrimary, letterSpacing: -0.3 },
     version: { fontFamily: mono, fontSize: 13, color: colors.textTertiary, marginTop: space(1) },
     chipRow: { flexDirection: "row", marginTop: space(2.5) },
-    installButton: { marginTop: space(7) },
-    updateNote: {
+    busyStatus: {
         fontFamily: mono,
         fontSize: 12,
         color: colors.textSecondary,
-        marginTop: space(3),
         letterSpacing: 0.3,
     },
-    progressWrap: { marginTop: space(4) },
-    progressText: {
-        fontFamily: mono,
-        fontSize: 12,
-        color: colors.textSecondary,
-        marginTop: space(2),
-        letterSpacing: 0.3,
-    },
+    progressUnderline: { marginTop: space(4) },
+    feedbackRow: { marginTop: space(7) },
     permNote: {
         fontSize: 13,
         color: colors.textTertiary,
         lineHeight: 20,
         marginTop: space(4),
-    },
-    errorBlock: { marginTop: space(5) },
-    hint: { fontSize: 14, color: colors.textSecondary, lineHeight: 21, marginTop: space(3) },
-    detailMono: {
-        fontFamily: mono,
-        fontSize: 11,
-        color: colors.textTertiary,
-        lineHeight: 16,
-        marginTop: space(3),
     },
     removeButton: { marginTop: space(5) },
     noticeBlock: { marginTop: space(7) },
