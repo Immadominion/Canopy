@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { getCurrentPublisher } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { AddTestersForm } from "@/components/beta/add-testers-form";
+import { AddFromGroupForm } from "@/components/beta/add-from-group-form";
 import { TrackStatusControls } from "@/components/beta/track-status-controls";
 import { TrackDangerControls } from "@/components/beta/track-danger-controls";
 import { TrackExpiryCountdown } from "@/components/beta/track-expiry-countdown";
@@ -102,6 +103,33 @@ export default async function TrackDetailPage({ params }: PageProps) {
     const isExpired = new Date(track.expires_at).getTime() < Date.now();
     const { label: statusLabel, className: statusClassName } = trackStatusStyle(track.status);
 
+    // Reusable tester groups for the "Add from group" picker, and the groups
+    // already applied to this track (provenance).
+    const { data: pubGroups } = await admin
+        .from("tester_groups")
+        .select("id, name, member_count")
+        .eq("publisher_id", publisher.id)
+        .order("updated_at", { ascending: false });
+    const { data: trackGroupLinks } = await admin
+        .from("beta_track_group_links")
+        .select("group_id, members_added, partial")
+        .eq("track_id", track.id);
+
+    const groupOptions = (pubGroups ?? []).map((g) => ({
+        id: g.id,
+        name: g.name,
+        memberCount: g.member_count,
+    }));
+    const groupNameById = new Map(groupOptions.map((g) => [g.id, g.name]));
+    const attachedGroups = (trackGroupLinks ?? []).map((l) => ({
+        groupId: l.group_id,
+        name: groupNameById.get(l.group_id) ?? "Unknown group",
+        membersAdded: l.members_added,
+        partial: l.partial,
+    }));
+    const canAddTesters =
+        track.status === "active" && !isExpired && track.tester_count < track.tester_cap;
+
     return (
         <div className="max-w-3xl mx-auto">
             {/* Auto-refresh while the build is scanning so the status updates live. */}
@@ -180,6 +208,14 @@ export default async function TrackDetailPage({ params }: PageProps) {
                     testerCap={track.tester_cap}
                     trackStatus={track.status}
                     trackExpired={isExpired}
+                />
+
+                {/* Reuse an existing tester group (TestFlight-style). */}
+                <AddFromGroupForm
+                    trackId={track.id}
+                    groups={groupOptions}
+                    attached={attachedGroups}
+                    canAdd={canAddTesters}
                 />
 
                 {/* Tester list */}

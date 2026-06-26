@@ -4,10 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Package, ChartLine, Wrench, GearSix, SignOut, Wallet } from "@/components/ui/icon";
+import { Package, ChartLine, Wrench, GearSix, SignOut, Wallet, Users } from "@/components/ui/icon";
 
 const NAV_ITEMS = [
     { href: "/dashboard/apps", label: "Apps", Icon: Package },
+    { href: "/dashboard/tester-groups", label: "Tester Groups", Icon: Users },
     { href: "/dashboard/analytics", label: "Analytics", Icon: ChartLine },
     { href: "/dashboard/tools", label: "Tools", Icon: Wrench },
     { href: "/dashboard/settings", label: "Settings", Icon: GearSix },
