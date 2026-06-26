@@ -1,7 +1,11 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import landing from "@/components/landing/landing.module.css";
+import { MarketingNav } from "@/components/marketing/marketing-nav";
 import { PLAN_PRICES } from "@/lib/billing/plans";
+
+import styles from "./pricing.module.css";
 
 export const metadata: Metadata = {
     title: "Pricing — Canopy",
@@ -67,57 +71,36 @@ const TIERS: Tier[] = [
     },
 ];
 
-/**
- * /pricing — public pricing page. Reads prices from the billing lib so they
- * never drift from what the app actually charges.
- */
+/** /pricing — public marketing page, light landing theme. */
 export default function PricingPage() {
     return (
-        <main className="min-h-screen bg-nd-black px-nd-xl py-nd-2xl">
-            <div className="max-w-4xl mx-auto">
-                <Link
-                    href="/"
-                    className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em] hover:text-nd-text-secondary transition-colors"
-                >
-                    ← CANOPY
-                </Link>
+        <div className={`${landing["page"]} landing-light`}>
+            <MarketingNav />
 
-                <header className="mt-nd-xl mb-nd-2xl">
-                    <h1 className="font-mono text-nd-display-sm text-nd-text-display tracking-tight">
-                        Pricing
-                    </h1>
-                    <p className="mt-nd-md font-body text-nd-body text-nd-text-secondary max-w-xl leading-relaxed">
-                        The beta side is free. You only pay if you want deeper analytics, a bigger
-                        team, or longer history. You pay in USDC on Solana, so there is no card and no
-                        business account needed.
+            <main className={styles["root"]}>
+                <div className={styles["hero"]}>
+                    <h1 className={styles["title"]}>Pricing</h1>
+                    <p className={styles["sub"]}>
+                        The beta side is free. Pay only for deeper analytics, a bigger team, or longer
+                        history. You pay in USDC on Solana, so there is no card and no business account
+                        needed.
                     </p>
-                </header>
+                </div>
 
-                <div className="grid gap-nd-lg md:grid-cols-3">
+                <div className={styles["grid"]}>
                     {TIERS.map((tier) => (
                         <div
                             key={tier.name}
-                            className={`flex flex-col rounded-nd-card border p-nd-lg ${
-                                tier.highlight ? "border-nd-brand" : "border-nd-border"
-                            }`}
+                            className={`${styles["card"]} ${tier.highlight ? styles["cardHi"] : ""}`}
                         >
-                            <p className="font-mono text-nd-label text-nd-text-disabled uppercase tracking-[0.08em]">
-                                {tier.name}
-                            </p>
-                            <p className="mt-nd-md font-mono text-nd-display-sm text-nd-text-display">
-                                {tier.price}
-                            </p>
-                            <p className="mt-nd-2xs font-body text-nd-caption text-nd-text-secondary">
-                                {tier.sub}
-                            </p>
+                            <span className={styles["tier"]}>{tier.name}</span>
+                            <p className={styles["price"]}>{tier.price}</p>
+                            <p className={styles["priceSub"]}>{tier.sub}</p>
 
-                            <ul className="mt-nd-lg flex-1 space-y-nd-sm">
+                            <ul className={styles["features"]}>
                                 {tier.features.map((f) => (
-                                    <li
-                                        key={f}
-                                        className="font-body text-nd-body-sm text-nd-text-secondary leading-snug"
-                                    >
-                                        <span className="text-nd-brand-hover">+ </span>
+                                    <li key={f}>
+                                        <span className={styles["check"]}>✓</span>
                                         {f}
                                     </li>
                                 ))}
@@ -125,11 +108,7 @@ export default function PricingPage() {
 
                             <Link
                                 href={tier.cta.href}
-                                className={`mt-nd-lg block text-center font-mono text-nd-label uppercase tracking-[0.08em] px-nd-lg py-nd-sm rounded-nd-card-compact transition-colors ${
-                                    tier.highlight
-                                        ? "bg-nd-brand text-nd-on-brand hover:bg-nd-brand-hover"
-                                        : "border border-nd-border text-nd-text-primary hover:border-nd-border-visible"
-                                }`}
+                                className={`${styles["cta"]} ${tier.highlight ? styles["ctaHi"] : ""}`}
                             >
                                 {tier.cta.label}
                             </Link>
@@ -137,20 +116,12 @@ export default function PricingPage() {
                     ))}
                 </div>
 
-                <p className="mt-nd-2xl font-body text-nd-caption text-nd-text-disabled max-w-xl leading-relaxed">
-                    Paid plans do not auto-renew. A payment extends your plan by the period you bought,
-                    and you pay again to extend. When a plan lapses, you drop back to Free until you
-                    pay again. The 200 testers per build cap applies to every plan.
+                <p className={styles["note"]}>
+                    Paid plans do not auto-renew. A payment extends your plan, and you pay again to
+                    extend. When a plan lapses you drop back to Free. The 200 testers per build cap
+                    applies to every plan. Read the <Link href="/docs">docs</Link> to get started.
                 </p>
-
-                <p className="mt-nd-lg font-mono text-nd-caption text-nd-text-disabled">
-                    Read the{" "}
-                    <Link href="/docs" className="text-nd-text-secondary underline hover:text-nd-text-primary">
-                        docs
-                    </Link>{" "}
-                    to get started.
-                </p>
-            </div>
-        </main>
+            </main>
+        </div>
     );
 }

@@ -11,10 +11,11 @@ const NAV = [
     { href: "/docs/installing", label: "How testers install" },
 ] as const;
 
-export function DocsNav() {
+/** Docs side-nav. Styling is passed in so the layout owns the (light) theme. */
+export function DocsNav({ linkClass, activeClass }: { linkClass: string; activeClass: string }) {
     const pathname = usePathname();
     return (
-        <nav className="flex flex-col gap-nd-2xs">
+        <nav>
             {NAV.map((item) => {
                 const active = pathname === item.href;
                 return (
@@ -22,11 +23,7 @@ export function DocsNav() {
                         key={item.href}
                         href={item.href}
                         aria-current={active ? "page" : undefined}
-                        className={`font-body text-nd-body-sm py-nd-2xs transition-colors ${
-                            active
-                                ? "text-nd-brand-hover"
-                                : "text-nd-text-secondary hover:text-nd-text-primary"
-                        }`}
+                        className={`${linkClass} ${active ? activeClass : ""}`}
                     >
                         {item.label}
                     </Link>

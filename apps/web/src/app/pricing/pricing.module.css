@@ -1,0 +1,141 @@
+/* Pricing page — uses the landing's light theme (the .page class on the root
+   sets --bg, --ink, --teal, --cream, etc.; these styles consume them). */
+
+.root {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: clamp(110px, 15vh, 168px) var(--pad) clamp(60px, 10vh, 120px);
+}
+
+.hero {
+    text-align: center;
+    margin-bottom: clamp(40px, 6vh, 72px);
+}
+.title {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.045em;
+    line-height: 0.95;
+    font-size: clamp(48px, 9vw, 120px);
+    color: var(--ink);
+    margin: 0;
+}
+.sub {
+    max-width: 580px;
+    margin: clamp(18px, 3vh, 28px) auto 0;
+    font-size: clamp(16px, 1.4vw, 20px);
+    line-height: 1.5;
+    color: var(--ink-soft);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: clamp(16px, 1.8vw, 24px);
+    align-items: stretch;
+}
+
+.card {
+    background: var(--card);
+    border-radius: var(--r-lg);
+    padding: clamp(26px, 2.4vw, 38px);
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-pill);
+}
+.cardHi {
+    background: var(--teal-100);
+}
+
+.tier {
+    align-self: flex-start;
+    font-weight: 800;
+    font-size: 14px;
+    padding: 7px 16px;
+    border-radius: 999px;
+    background: var(--cream);
+    color: var(--ink);
+}
+.cardHi .tier {
+    background: #fff;
+    color: var(--teal-deep);
+}
+
+.price {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    font-size: clamp(40px, 4vw, 56px);
+    color: var(--ink);
+    margin: 22px 0 2px;
+}
+.priceSub {
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.features {
+    list-style: none;
+    margin: 26px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    flex: 1;
+}
+.features li {
+    display: flex;
+    gap: 10px;
+    font-size: 15.5px;
+    line-height: 1.4;
+    color: var(--ink-soft);
+}
+.check {
+    color: var(--teal-deep);
+    font-weight: 800;
+    flex: none;
+}
+
+.cta {
+    margin-top: 28px;
+    text-align: center;
+    background: var(--ink);
+    color: #fff;
+    font-weight: 700;
+    font-size: 16px;
+    padding: 15px 24px;
+    border-radius: 999px;
+    text-decoration: none;
+    transition: transform 0.2s, opacity 0.2s;
+}
+.cta:hover {
+    transform: translateY(-2px);
+    opacity: 0.9;
+}
+.ctaHi {
+    background: var(--teal);
+    color: var(--on-teal);
+}
+
+.note {
+    max-width: 640px;
+    margin: clamp(40px, 6vh, 64px) auto 0;
+    text-align: center;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--muted);
+}
+.note a {
+    color: var(--ink);
+    font-weight: 700;
+    text-decoration: none;
+}
+.note a:hover {
+    color: var(--teal-deep);
+}
+
+@media (max-width: 900px) {
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}
