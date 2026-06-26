@@ -10,25 +10,39 @@ import { withDb } from "../db/client";
 
 const eventsRouter = new Hono<{ Bindings: Env }>();
 
+// NOTE: every optional field uses `.nullish()` (accepts the value, `null`, OR
+// absent) — NOT `.optional()` (which rejects an explicit `null`). The SDK sends
+// these fields as explicit `null` when there's no value (e.g. app_open before a
+// wallet connects), so `.optional()` 400'd every real event. A 4xx is dropped
+// silently by the SDK, so that mismatch made analytics vanish with no error.
 const eventSchema = z.object({
     id: z.string().uuid(),
     name: z.string().min(1).max(100),
+    // A 64-char lowercase-hex wallet hash, OR empty / null / absent for an
+    // anonymous event. Empty/absent is normalised to NULL on write, so distinct
+    // wallet metrics (COUNT DISTINCT wallet_hash) ignore anonymous events.
     walletHash: z
-        .string()
-        .length(64)
-        .regex(/^[0-9a-f]+$/, "walletHash must be a lowercase hex SHA-256"),
-    sessionId: z.string().optional(),
-    properties: z.record(z.unknown()).optional(),
-    sdkVersion: z.string().optional(),
-    appVersion: z.string().optional(),
-    platform: z.string().optional(),
-    isSeeker: z.boolean().optional(),
-    hasGenesisToken: z.boolean().optional(),
-    skrBalanceTier: z.enum(["none", "low", "medium", "high"]).optional(),
-    // Bound to the max representable JS Date (ms). An out-of-range value would
-    // throw RangeError at `new Date(...).toISOString()` and fail the WHOLE batch
-    // insert — one poison row dropping 199 good events into an infinite retry.
-    timestamp: z.number().int().positive().max(8_640_000_000_000_000),
+        .union([
+            z.string().length(64).regex(/^[0-9a-f]+$/, "walletHash must be a lowercase hex SHA-256"),
+            z.literal(""),
+        ])
+        .nullish(),
+    sessionId: z.string().nullish(),
+    properties: z.record(z.unknown()).nullish(),
+    sdkVersion: z.string().nullish(),
+    appVersion: z.string().nullish(),
+    platform: z.string().nullish(),
+    isSeeker: z.boolean().nullish(),
+    hasGenesisToken: z.boolean().nullish(),
+    skrBalanceTier: z.enum(["none", "low", "medium", "high"]).nullish(),
+    // Accept epoch milliseconds (number) OR an ISO-8601 string — the SDK sends
+    // ISO strings (`new Date().toISOString()`). The number form is bounded to the
+    // max representable JS Date (ms) so an out-of-range value can't throw
+    // RangeError at `new Date(...).toISOString()` and poison the whole batch.
+    timestamp: z.union([
+        z.number().int().positive().max(8_640_000_000_000_000),
+        z.string().datetime(),
+    ]),
 });
 
 const batchSchema = z.object({
@@ -147,11 +161,15 @@ function writeEventsToSupabase(
             // Build "$N, $N+1, ..." using String() to satisfy restrict-template-expressions
             const row = Array.from({ length: 12 }, (_, j) => "$" + String(base + j + 1)).join(", ");
             placeholders.push("(" + row + ")");
+            // Anonymous events (no wallet yet) arrive as "" or null — store NULL so
+            // they count toward total events but not toward distinct-wallet metrics.
+            const walletHash =
+                event.walletHash && event.walletHash.length === 64 ? event.walletHash : null;
             values.push(
                 event.id,                                          // id (UUID — client generated)
                 appId,                                             // app_id
                 event.name,                                        // name
-                event.walletHash,                                  // wallet_hash (already SHA-256)
+                walletHash,                                        // wallet_hash (SHA-256 or NULL)
                 event.sessionId ?? null,                           // session_id
                 event.properties ? JSON.stringify(event.properties) : null, // properties (JSONB)
                 event.sdkVersion ?? null,                          // sdk_version

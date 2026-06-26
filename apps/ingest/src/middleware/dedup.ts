@@ -1,9 +1,10 @@
-import type { IngestEvent } from "../types";
-
 /**
  * Partitions a batch into events we have NOT seen before (`accepted`) and
  * duplicates we have (`rejected`), keyed by the client-generated event UUID
  * stored in KV with a 24h TTL.
+ *
+ * Generic over the event shape (only `id` is read here), so it works with the
+ * Zod-validated batch type directly without coupling to a stricter struct.
  *
  * This only READS the dedup markers. Markers are written by `markEventsSeen()`
  * AFTER a successful DB write — never here, pre-write. Writing them before the
@@ -11,11 +12,11 @@ import type { IngestEvent } from "../types";
  * retries the same batch, the markers now say "seen", every event moves to
  * `rejected`, and the data is lost forever.
  */
-export async function dedupEvents(
-    events: IngestEvent[],
+export async function dedupEvents<T extends { id: string }>(
+    events: T[],
     dedupKv: KVNamespace,
-): Promise<{ accepted: IngestEvent[]; rejected: string[] }> {
-    const accepted: IngestEvent[] = [];
+): Promise<{ accepted: T[]; rejected: string[] }> {
+    const accepted: T[] = [];
     const rejected: string[] = [];
 
     const lookups = await Promise.all(
@@ -47,7 +48,10 @@ export async function dedupEvents(
  * after the events are durably written, and prefer `executionCtx.waitUntil()` so
  * the KV writes survive the response returning.
  */
-export async function markEventsSeen(events: IngestEvent[], dedupKv: KVNamespace): Promise<void> {
+export async function markEventsSeen(
+    events: { id: string }[],
+    dedupKv: KVNamespace,
+): Promise<void> {
     await Promise.allSettled(
         events.map((event) => dedupKv.put(`event:${event.id}`, "1", { expirationTtl: 86400 })),
     );

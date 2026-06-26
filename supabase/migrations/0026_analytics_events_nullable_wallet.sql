@@ -1,0 +1,12 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 0026 — analytics_events.wallet_hash nullable (allow anonymous events)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Events fired before a wallet connects (e.g. app_open on launch) have no wallet
+-- hash. wallet_hash was NOT NULL, so the ingest worker required a 64-char hash
+-- and rejected every anonymous event with a 400 — and the SDK silently drops 4xx
+-- batches, so those events vanished with no error.
+--
+-- Allow NULL so anonymous events persist. COUNT(DISTINCT wallet_hash) ignores
+-- NULL, so distinct-wallet / DAU metrics stay correct: anonymous events count
+-- toward total events, not toward distinct wallets.
+ALTER TABLE analytics_events ALTER COLUMN wallet_hash DROP NOT NULL;
