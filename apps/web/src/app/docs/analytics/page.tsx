@@ -1,3 +1,5 @@
+import { VideoEmbed } from "@/components/docs/video-embed";
+
 const PROVIDER_SNIPPET = `import { CanopyProvider } from "@canopy/react-native";
 
 export default function App() {
@@ -31,6 +33,17 @@ export default function AnalyticsDocs() {
                 Analytics come from <strong>your own app</strong>, not from Canopy and not from the
                 tester app. Your app sends events to Canopy as people use it. Installing a build does
                 not create analytics by itself.
+            </p>
+
+            <VideoEmbed
+                id="jSc19XFcoDE"
+                title="Canopy analytics in action"
+                caption="Watch: analytics in action"
+            />
+            <p>
+                The video shows the analytics dashboard once events are flowing: active wallets, event
+                counts, and trends, all tied to wallets. Addresses are hashed on the device, so we never
+                see the plain address. Here is how to set it up for your own app.
             </p>
             <p>
                 You need two things: an <strong>API key</strong> and your <strong>app ID</strong>.
