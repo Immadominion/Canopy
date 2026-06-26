@@ -106,6 +106,8 @@ function Detail({ label, value }: { label: string; value: string }): React.JSX.E
 export default function BetaDetailScreen(): React.JSX.Element | null {
     const { trackId } = useLocalSearchParams<{ trackId: string }>();
     const [beta, setBeta] = useState<BetaSummary | null>(null);
+    // Prior builds of the same app this wallet can see (the "what to test" history).
+    const [history, setHistory] = useState<BetaSummary[]>([]);
     const [loadError, setLoadError] = useState("");
     const [step, setStep] = useState<InstallStep | null>(null);
     const [installError, setInstallError] = useState("");
@@ -139,7 +141,22 @@ export default function BetaDetailScreen(): React.JSX.Element | null {
                 const match = betas.find((b) => b.trackId === trackId) ?? null;
                 if (!match) setLoadError("NOT_FOUND");
                 setBeta(match);
-                if (match) refreshInstalledVersion(match);
+                if (match) {
+                    refreshInstalledVersion(match);
+                    // Earlier builds of the same app, newest first, with notes.
+                    setHistory(
+                        betas
+                            .filter(
+                                (b) =>
+                                    b.trackId !== match.trackId &&
+                                    b.packageName != null &&
+                                    b.packageName === match.packageName &&
+                                    b.releaseNotes != null &&
+                                    b.versionCode < match.versionCode,
+                            )
+                            .sort((a, b) => b.versionCode - a.versionCode),
+                    );
+                }
             } catch (err) {
                 if (err instanceof UnauthenticatedError) {
                     router.replace(`/connect?next=/beta/${trackId}`);
@@ -342,6 +359,21 @@ export default function BetaDetailScreen(): React.JSX.Element | null {
                 </View>
             ) : null}
 
+            {/* Previous builds — what changed across earlier versions */}
+            {history.length > 0 ? (
+                <View style={styles.section}>
+                    <SectionLabel>PREVIOUS BUILDS</SectionLabel>
+                    {history.map((h) => (
+                        <View key={h.trackId} style={styles.historyItem}>
+                            <Text style={styles.historyVersion}>
+                                {h.versionName} ({h.versionCode})
+                            </Text>
+                            <Text style={styles.notes}>{h.releaseNotes}</Text>
+                        </View>
+                    ))}
+                </View>
+            ) : null}
+
             {/* Send feedback (active betas only) */}
             {isActive ? (
                 <FeedbackForm trackId={beta.trackId} versionCode={beta.versionCode} />
@@ -421,6 +453,19 @@ const styles = StyleSheet.create({
     notice: { fontSize: 16, color: colors.textPrimary, lineHeight: 24, fontWeight: "600" },
     section: { marginTop: space(8) },
     notes: { fontSize: 15, color: colors.textSecondary, lineHeight: 24 },
+    historyItem: {
+        marginTop: space(4),
+        paddingTop: space(4),
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: colors.border,
+    },
+    historyVersion: {
+        fontFamily: mono,
+        fontSize: 12,
+        color: colors.textTertiary,
+        letterSpacing: 0.3,
+        marginBottom: space(2),
+    },
     detailRow: {
         flexDirection: "row",
         justifyContent: "space-between",
