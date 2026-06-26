@@ -5,23 +5,27 @@
  * NOTE: on a physical device, `localhost` points at the device, not your Mac —
  * set EXPO_PUBLIC_CANOPY_API_URL to your machine's LAN IP (or a tunnel) when
  * testing against a local web server.
+ *
+ * IMPORTANT: read `process.env.EXPO_PUBLIC_*` DIRECTLY here. Expo only inlines
+ * these values into a release bundle when it sees the literal
+ * `process.env.EXPO_PUBLIC_…` member access. If you alias process.env to another
+ * variable first and read from that, nothing gets inlined: it works in dev (dev
+ * ships a runtime process.env) but in a release build every value is undefined,
+ * so the API URL silently falls back to localhost and analytics get empty keys.
+ * Types for these vars live in env.d.ts.
  */
-// Typed view of the Expo public env (avoids `any` from process.env when
-// expo-env.d.ts isn't in the lint program's tsconfig include).
-const ENV = process.env as Record<string, string | undefined>;
-
 export const API_BASE_URL = (
-    ENV.EXPO_PUBLIC_CANOPY_API_URL ?? "http://localhost:3000"
+    process.env.EXPO_PUBLIC_CANOPY_API_URL ?? "http://localhost:3000"
 ).replace(/\/+$/, "");
 
 /** The Canopy app's own analytics config (optional — for tracking the tester app itself). */
 export const CANOPY_ANALYTICS = {
-    apiKey: ENV.EXPO_PUBLIC_CANOPY_API_KEY ?? "",
-    appId: ENV.EXPO_PUBLIC_CANOPY_APP_ID ?? "",
+    apiKey: process.env.EXPO_PUBLIC_CANOPY_API_KEY ?? "",
+    appId: process.env.EXPO_PUBLIC_CANOPY_APP_ID ?? "",
     appVersion: "0.1.0",
     // Strip any trailing slash — the SDK appends "/v1/events", so a trailing
     // slash here would POST to "…//v1/events", which 404s.
-    ...(ENV.EXPO_PUBLIC_CANOPY_INGEST_URL
-        ? { ingestUrl: ENV.EXPO_PUBLIC_CANOPY_INGEST_URL.replace(/\/+$/, "") }
+    ...(process.env.EXPO_PUBLIC_CANOPY_INGEST_URL
+        ? { ingestUrl: process.env.EXPO_PUBLIC_CANOPY_INGEST_URL.replace(/\/+$/, "") }
         : {}),
 };
