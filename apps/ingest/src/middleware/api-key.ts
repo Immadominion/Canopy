@@ -16,7 +16,11 @@ import type { Env } from "../types";
  * Keys are `cnp_live_...`; the stored key_prefix is the first 16 chars.
  */
 
-const KV_TTL_SECONDS = 60;
+// 10 minutes. Longer = far fewer key-validation DB reads (each request would
+// otherwise re-read the key from Postgres every TTL), which halves DB load per
+// event and keeps the connection pool healthy under bursts. Trade-off: a
+// revoked key keeps working for up to this long. Writes still always hit the DB.
+const KV_TTL_SECONDS = 600;
 const PREFIX_LEN = 16; // "cnp_live_" (9) + 7 hex
 
 interface CachedKey {
