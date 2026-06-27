@@ -4,7 +4,7 @@
     "slug": "canopy-tester",
     "version": "0.1.0",
     "scheme": "canopy",
-    "icon": "./assets/logo.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/logo.png",
@@ -18,8 +18,8 @@
       "package": "app.canopy.tester",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo.png",
-        "backgroundColor": "#0E0E10"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
       },
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES",
