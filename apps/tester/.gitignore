@@ -1,0 +1,4 @@
+
+# Release signing — NEVER commit (keystore + passwords)
+credentials/
+*.keystore
